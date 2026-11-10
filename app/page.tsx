@@ -3,7 +3,7 @@ import { currentUser } from "@/lib/auth";
 import { formatDate, nextWednesday, timingAlert } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
 import { STAGES, STAGE_LABEL, type Issue } from "@/lib/types";
-import { AlertBox, STAGE_THEME, StageBadge, StageLegend } from "./ui";
+import { AlertBox, STAGE_THEME, StageBadge } from "./ui";
 
 // What each role should look at first.
 const YOUR_TURN = {
@@ -12,9 +12,11 @@ const YOUR_TURN = {
   approver: ["READY_FOR_REVIEW"],
 } as const;
 
-export default async function PipelinePage() {
-  const [user, db] = await Promise.all([currentUser(), readDb()]);
+export default async function PipelinePage({ searchParams }: PageProps<"/">) {
+  const [user, db, params] = await Promise.all([currentUser(), readDb(), searchParams]);
   const issues = [...db.issues].sort((a, b) => b.number - a.number);
+  const active = STAGES.find((s) => s.toLowerCase() === params.stage) ?? null;
+  const shown = active ? issues.filter((i) => i.stage === active) : issues;
   const thisWeekDate = nextWednesday();
   const thisWeek = issues.find((i) => i.issueDate === thisWeekDate);
   const yourTurn = issues.filter((i) => (YOUR_TURN[user.role] as readonly string[]).includes(i.stage) && !(user.role === "reviewer" && i.scorecard));
@@ -78,43 +80,66 @@ export default async function PipelinePage() {
         </section>
       )}
 
-      <StageLegend />
+      <section className="card p-0">
+        {/* Tabs are links (?stage=…), so a tab can be bookmarked or shared. */}
+        <nav aria-label="Issues by stage" className="flex gap-1 overflow-x-auto border-b border-slate-200 px-3 pt-3">
+          <Tab href="/" active={!active} label="All" count={issues.length} activeClass="border-indigo-600 bg-indigo-50 text-indigo-800" />
+          {STAGES.map((stage) => (
+            <Tab
+              key={stage}
+              href={`/?stage=${stage.toLowerCase()}`}
+              active={active === stage}
+              label={STAGE_LABEL[stage]}
+              count={issues.filter((i) => i.stage === stage).length}
+              dot={STAGE_THEME[stage].dot}
+              activeClass={STAGE_THEME[stage].tab}
+            />
+          ))}
+        </nav>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {STAGES.map((stage) => {
-          const list = issues.filter((i) => i.stage === stage);
-          const t = STAGE_THEME[stage];
-          return (
-            <div key={stage} className={`rounded-xl border p-3 ${t.column}`}>
-              <h3 className={`mb-2 flex items-center justify-between text-sm font-semibold ${t.heading}`}>
-                <span className="flex items-center gap-2">
-                  <span className={`h-2.5 w-2.5 rounded-full ${t.dot}`} />
-                  {STAGE_LABEL[stage]}
-                </span>
-                <span className="rounded-full bg-white/80 px-2 text-xs font-medium">{list.length}</span>
-              </h3>
-              <div className="space-y-2">
-                {list.length === 0 && <p className="px-1 text-xs text-slate-400">None</p>}
-                {list.map((i) => (
-                  <IssueCard key={i.id} issue={i} />
-                ))}
-              </div>
+        <div className="p-4">
+          {shown.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-500">{active ? `No issues in ${STAGE_LABEL[active]}.` : "No issues yet."}</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {shown.map((i) => (
+                <IssueCard key={i.id} issue={i} showStage={!active} />
+              ))}
             </div>
-          );
-        })}
+          )}
+        </div>
       </section>
     </div>
   );
 }
 
-function IssueCard({ issue }: { issue: Issue }) {
+function Tab({ href, active, label, count, dot, activeClass }: { href: string; active: boolean; label: string; count: number; dot?: string; activeClass: string }) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={`-mb-px flex shrink-0 items-center gap-2 rounded-t-md border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap ${
+        active ? activeClass : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+      }`}
+    >
+      {dot && <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />}
+      {label}
+      <span className={`rounded-full px-1.5 text-xs ${active ? "bg-white/80" : "bg-slate-100"}`}>{count}</span>
+    </Link>
+  );
+}
+
+function IssueCard({ issue, showStage }: { issue: Issue; showStage: boolean }) {
   return (
     <Link
       href={`/issues/${issue.id}`}
       className={`block rounded-lg border border-l-4 border-slate-200 bg-white p-3 text-sm shadow-sm hover:shadow-md ${STAGE_THEME[issue.stage].border}`}
     >
-      <div className="font-medium">#{issue.number}</div>
-      <div className="truncate text-slate-700">{issue.subject || "Untitled"}</div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">#{issue.number}</span>
+        {showStage && <StageBadge stage={issue.stage} />}
+      </div>
+      <div className="mt-1 truncate text-slate-700">{issue.subject || "Untitled"}</div>
       <div className="mt-1 text-xs text-slate-500">{formatDate(issue.issueDate)}</div>
     </Link>
   );

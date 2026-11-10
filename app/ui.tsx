@@ -4,13 +4,14 @@ import { STAGE_LABEL, type Stage } from "@/lib/types";
 // One color per stage, used everywhere a stage appears so it reads at a glance:
 // gray = being written, amber = waiting on review, orange = back with the
 // Operator, green = approved, blue = sent, red = held.
-export const STAGE_THEME: Record<Stage, { badge: string; dot: string; border: string; column: string; heading: string }> = {
+export const STAGE_THEME: Record<Stage, { badge: string; dot: string; border: string; column: string; heading: string; tab: string }> = {
   DRAFT: {
     badge: "bg-slate-100 text-slate-700 ring-slate-300",
     dot: "bg-slate-400",
     border: "border-l-slate-400",
     column: "bg-slate-100/70 border-slate-200",
     heading: "text-slate-700",
+    tab: "border-slate-500 bg-slate-100 text-slate-800",
   },
   READY_FOR_REVIEW: {
     badge: "bg-amber-100 text-amber-800 ring-amber-300",
@@ -18,6 +19,7 @@ export const STAGE_THEME: Record<Stage, { badge: string; dot: string; border: st
     border: "border-l-amber-500",
     column: "bg-amber-50 border-amber-200",
     heading: "text-amber-800",
+    tab: "border-amber-500 bg-amber-50 text-amber-800",
   },
   CHANGES_REQUESTED: {
     badge: "bg-orange-100 text-orange-800 ring-orange-300",
@@ -25,6 +27,7 @@ export const STAGE_THEME: Record<Stage, { badge: string; dot: string; border: st
     border: "border-l-orange-500",
     column: "bg-orange-50 border-orange-200",
     heading: "text-orange-800",
+    tab: "border-orange-500 bg-orange-50 text-orange-800",
   },
   APPROVED: {
     badge: "bg-emerald-100 text-emerald-800 ring-emerald-300",
@@ -32,6 +35,7 @@ export const STAGE_THEME: Record<Stage, { badge: string; dot: string; border: st
     border: "border-l-emerald-500",
     column: "bg-emerald-50 border-emerald-200",
     heading: "text-emerald-800",
+    tab: "border-emerald-500 bg-emerald-50 text-emerald-800",
   },
   SENT: {
     badge: "bg-sky-100 text-sky-800 ring-sky-300",
@@ -39,6 +43,7 @@ export const STAGE_THEME: Record<Stage, { badge: string; dot: string; border: st
     border: "border-l-sky-500",
     column: "bg-sky-50 border-sky-200",
     heading: "text-sky-800",
+    tab: "border-sky-500 bg-sky-50 text-sky-800",
   },
   HELD: {
     badge: "bg-rose-100 text-rose-800 ring-rose-300",
@@ -46,6 +51,7 @@ export const STAGE_THEME: Record<Stage, { badge: string; dot: string; border: st
     border: "border-l-rose-500",
     column: "bg-rose-50 border-rose-200",
     heading: "text-rose-800",
+    tab: "border-rose-500 bg-rose-50 text-rose-800",
   },
 };
 
