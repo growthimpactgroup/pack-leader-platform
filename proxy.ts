@@ -19,5 +19,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/((?!_next/static|_next/image|favicon.ico).*)",
+  // favicon.ico stays behind the gate: there is no icon file, so the request
+  // falls through to the not-found page, which renders the signed-in layout.
+  matcher: "/((?!_next/static|_next/image).*)",
 };
