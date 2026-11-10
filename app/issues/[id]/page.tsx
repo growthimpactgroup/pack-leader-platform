@@ -11,6 +11,7 @@ import {
   scheduleSend,
   submitForReview,
 } from "@/app/actions";
+import { EmailPreviewButton } from "@/app/email-preview";
 import { AlertBox, ErrorBox, StageBadge } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
 import { autoChecks } from "@/lib/packet";
@@ -79,7 +80,10 @@ function PacketForm({ issue }: { issue: Issue }) {
   return (
     <form id="packet" action={savePacket} className="card space-y-5">
       <input type="hidden" name="id" value={issue.id} />
-      <h2 className="text-lg font-semibold">Approval packet</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Approval packet</h2>
+        <EmailPreviewButton subjectFieldId="subject" bodyFieldId="body" />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
@@ -173,7 +177,10 @@ function AutoChecks({ issue }: { issue: Issue }) {
 function PacketView({ issue }: { issue: Issue }) {
   return (
     <section className="card space-y-5">
-      <h2 className="text-lg font-semibold">Approval packet</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Approval packet</h2>
+        <EmailPreviewButton subject={issue.subject} body={issue.body} />
+      </div>
       <Field label="1. Subject line">
         <p className="font-medium">{issue.subject || "—"}</p>
         {issue.altSubjects && <p className="text-sm text-slate-500">Alternatives: {issue.altSubjects}</p>}
