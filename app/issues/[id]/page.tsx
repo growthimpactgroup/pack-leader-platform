@@ -21,7 +21,7 @@ import { autoChecks } from "@/lib/packet";
 import { deadlines, formatDate, formatPacific, suggestedSendTime, timingAlert, toPacificInput, upcomingWednesdays } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
 import { bodyHtml, marginPx } from "@/lib/richtext";
-import { EDITABLE_STAGES, ROLE_LABEL, STAGE_LABEL, type Issue, type User } from "@/lib/types";
+import { EDITABLE_STAGES, ROLE_LABEL, STAGE_LABEL, type Issue, type Problem, type User } from "@/lib/types";
 
 const RULES: { key: keyof Issue["ruleCheck"]; label: string }[] = [
   { key: "noDashboardPlays", label: "No dashboard-feature plays" },
@@ -66,6 +66,7 @@ export default async function IssuePage({ params, searchParams }: PageProps<"/is
           <History issue={issue} />
         </div>
         <aside className="space-y-5">
+          {issue.problemId && <FromProblemBank issue={issue} problem={db.problems.find((p) => p.id === issue.problemId)} />}
           <Deadlines issue={issue} />
           <ActionPanel issue={issue} user={user} />
           {issue.scorecard && <ScorecardView issue={issue} />}
@@ -255,6 +256,40 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 // ---------- Side panel ----------
+
+function FromProblemBank({ issue, problem }: { issue: Issue; problem?: Problem }) {
+  return (
+    <section className="card space-y-2 text-sm">
+      <h2 className="label">From the Problem Bank</h2>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded bg-slate-900 px-1.5 py-0.5 font-mono text-xs font-semibold text-white">{issue.problemCode}</span>
+        {problem ? (
+          <Link href={`/problems/${problem.id}`} className="font-medium hover:underline">
+            {problem.title}
+          </Link>
+        ) : (
+          <span className="text-slate-600">{issue.problemTitle} (deleted from the bank)</span>
+        )}
+      </div>
+      {problem?.notes && <p className="whitespace-pre-wrap text-slate-600">{problem.notes}</p>}
+      {problem && problem.references.length > 0 && (
+        <ul className="space-y-0.5 text-xs">
+          {problem.references.map((r, i) => (
+            <li key={i} className="truncate">
+              {r.url ? (
+                <a href={r.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">
+                  {r.label}
+                </a>
+              ) : (
+                r.label
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 function Deadlines({ issue }: { issue: Issue }) {
   const d = deadlines(issue.issueDate);

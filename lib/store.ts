@@ -17,7 +17,7 @@ import type { Db } from "./types";
 // API does not expose, and has row-level security on with no policies, so the
 // anon/public keys can never read it. The app connects as the database owner.
 
-const EMPTY: Db = { issues: [], runLog: [] };
+const EMPTY: Db = { issues: [], runLog: [], problems: [], problemSeq: 0, imports: [] };
 const withDefaults = (data: unknown): Db => ({ ...structuredClone(EMPTY), ...(data as Partial<Db>) });
 
 const databaseUrl = () => process.env.DATABASE_URL || process.env.POSTGRES_URL || "";

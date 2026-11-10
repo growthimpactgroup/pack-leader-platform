@@ -93,3 +93,26 @@ export function ErrorBox({ message }: { message?: string }) {
   if (!message) return null;
   return <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{message}</div>;
 }
+
+// A problem's status, in the colors of the stage its latest draft is in.
+export function ProblemStatusBadge({ label, stage }: { label: string; stage: Stage | null }) {
+  if (!stage) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-500 ring-1 ring-inset ring-slate-300">
+        <span className="h-1.5 w-1.5 rounded-full border border-slate-400" />
+        {label}
+      </span>
+    );
+  }
+  const t = STAGE_THEME[stage];
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${t.badge}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />
+      {label}
+    </span>
+  );
+}
+
+export function Notice({ children }: { children: React.ReactNode }) {
+  return <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{children}</div>;
+}

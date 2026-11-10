@@ -96,6 +96,11 @@ export type Issue = {
   bodyHtml?: string; // formatted body from the editor (absent on older issues)
   bodyMargin?: "narrow" | "normal" | "wide";
   problemOfWeek: string;
+  // Link back to the Problem Bank entry this issue was drafted from. The code
+  // and title are kept so the link still reads correctly if the problem is deleted.
+  problemId?: string;
+  problemCode?: string;
+  problemTitle?: string;
   checklist: ChecklistItem[];
   ruleCheck: RuleCheck;
   flags: string;
@@ -123,7 +128,35 @@ export type RunLogEntry = {
   by: string;
 };
 
+export type Reference = { label: string; url: string };
+
+export type Problem = {
+  id: string;
+  code: string; // human-readable unique ID, e.g. PB-007
+  title: string;
+  body: string;
+  references: Reference[];
+  notes: string; // extra context for whoever drafts it
+  source: string; // "Added by hand" or the PDF it came from
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+};
+
+// A PDF that has been split into problems but not yet added to the bank.
+export type PendingImport = {
+  id: string;
+  fileName: string;
+  createdAt: string;
+  createdBy: string;
+  items: { title: string; body: string; references: Reference[] }[];
+  otherLinks?: string[]; // links in the PDF that weren't next to a problem's text
+};
+
 export type Db = {
   issues: Issue[];
   runLog: RunLogEntry[];
+  problems: Problem[];
+  problemSeq: number; // last PB number handed out; never reused, even after a delete
+  imports: PendingImport[];
 };
