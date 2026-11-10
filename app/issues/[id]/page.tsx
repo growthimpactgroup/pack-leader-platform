@@ -12,7 +12,7 @@ import {
   submitForReview,
 } from "@/app/actions";
 import { EmailPreviewButton } from "@/app/email-preview";
-import { AlertBox, ErrorBox, StageBadge } from "@/app/ui";
+import { AlertBox, ErrorBox, STAGE_THEME, StageBadge } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
 import { autoChecks } from "@/lib/packet";
 import { deadlines, formatDate, formatPacific, suggestedSendTime, timingAlert, toPacificInput, upcomingWednesdays } from "@/lib/schedule";
@@ -41,7 +41,7 @@ export default async function IssuePage({ params, searchParams }: PageProps<"/is
         <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">
           ← Pipeline
         </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-3">
+        <div className={`mt-2 flex flex-wrap items-center gap-3 border-l-4 pl-3 ${STAGE_THEME[issue.stage].border}`}>
           <h1 className="text-2xl font-semibold tracking-tight">Pack Leader #{issue.number}</h1>
           <StageBadge stage={issue.stage} />
           <span className="text-sm text-slate-500">Planned send {formatDate(issue.issueDate)}, 10:00 am</span>

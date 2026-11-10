@@ -2,7 +2,7 @@ import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { addDays, deadlines, formatDate, formatPacific, pacificToday, timingAlert, upcomingWednesdays } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
-import { AlertBox, StageBadge } from "../ui";
+import { AlertBox, STAGE_THEME, StageBadge, StageLegend } from "../ui";
 
 export default async function SchedulePage() {
   const [user, db] = await Promise.all([currentUser(), readDb()]);
@@ -19,6 +19,9 @@ export default async function SchedulePage() {
         <p className="text-sm text-slate-500">
           One issue every Wednesday at 10:00 am. Packet due Tuesday 3:00 pm, approval by Wednesday 9:00 am (all Pacific).
         </p>
+        <div className="mt-3">
+          <StageLegend />
+        </div>
       </div>
 
       <section className="space-y-3">
@@ -27,7 +30,10 @@ export default async function SchedulePage() {
           const d = deadlines(date);
           const alert = issue ? timingAlert(issue) : null;
           return (
-            <div key={date} className="card flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div
+              key={date}
+              className={`card flex flex-col gap-3 border-l-4 sm:flex-row sm:items-center ${issue ? STAGE_THEME[issue.stage].border : "border-l-slate-200 border-dashed"}`}
+            >
               <div className="w-44 shrink-0">
                 <div className="font-medium">{formatDate(date)}</div>
                 <div className="text-xs text-slate-500">Packet due {formatPacific(d.submitBy)}</div>
@@ -64,7 +70,7 @@ export default async function SchedulePage() {
           <h2 className="label">Last four weeks</h2>
           <ul className="mt-2 divide-y divide-slate-100 text-sm">
             {recent.map((i) => (
-              <li key={i.id} className="flex flex-wrap items-center gap-3 py-2">
+              <li key={i.id} className={`flex flex-wrap items-center gap-3 border-l-4 py-2 pl-3 ${STAGE_THEME[i.stage].border}`}>
                 <span className="w-32 text-slate-500">{formatDate(i.issueDate)}</span>
                 <Link href={`/issues/${i.id}`} className="font-medium hover:underline">
                   #{i.number} · {i.subject || "Untitled"}

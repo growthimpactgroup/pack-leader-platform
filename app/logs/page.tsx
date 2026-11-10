@@ -2,7 +2,8 @@ import Link from "next/link";
 import { addRunLog } from "@/app/actions";
 import { formatDate, formatPacific } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
-import { STAGE_LABEL, type Stage } from "@/lib/types";
+import { STAGES, type Stage } from "@/lib/types";
+import { StageBadge } from "../ui";
 
 // The three logs from Appendix A6, built from the issues' own history.
 export default async function LogsPage() {
@@ -25,7 +26,7 @@ export default async function LogsPage() {
               <th className="py-2 pr-3">Issue</th>
               <th className="py-2 pr-3">Submitted</th>
               <th className="py-2 pr-3">Review verdict</th>
-              <th className="py-2 pr-3">Grace’s decision</th>
+              <th className="py-2 pr-3">Current stage</th>
               <th className="py-2 pr-3">Decided on</th>
               <th className="py-2">Changes requested</th>
             </tr>
@@ -36,7 +37,9 @@ export default async function LogsPage() {
                 <td className="py-2 pr-3"><Link href={`/issues/${i.id}`} className="font-medium hover:underline">#{i.number}</Link></td>
                 <td className="py-2 pr-3">{formatPacific(new Date(i.submittedAt!))}</td>
                 <td className="py-2 pr-3">{i.scorecard ? `${i.scorecard.verdict} (${i.scorecard.valueScore}/10)` : "—"}</td>
-                <td className="py-2 pr-3">{i.decision ? (i.decision.kind === "APPROVED" ? "Approved" : "Changes") : i.stage === "HELD" ? "Held" : "Pending"}</td>
+                <td className="py-2 pr-3">
+                  <StageBadge stage={i.stage} />
+                </td>
                 <td className="py-2 pr-3">{i.decision ? formatPacific(new Date(i.decision.at)) : "—"}</td>
                 <td className="py-2">{i.history.filter((e) => e.to === "CHANGES_REQUESTED").length}</td>
               </tr>
@@ -108,7 +111,7 @@ export default async function LogsPage() {
               <tr key={r.id}>
                 <td className="py-2 pr-3 whitespace-nowrap">{formatPacific(new Date(r.date))}</td>
                 <td className="py-2 pr-3">{r.issueNumber ? `#${r.issueNumber}` : "—"}</td>
-                <td className="py-2 pr-3">{r.stage ? STAGE_LABEL[r.stage as Stage] ?? r.stage : "—"}</td>
+                <td className="py-2 pr-3">{(STAGES as readonly string[]).includes(r.stage) ? <StageBadge stage={r.stage as Stage} /> : "—"}</td>
                 <td className="py-2 pr-3">{r.done}</td>
                 <td className="py-2 pr-3">{r.next}</td>
                 <td className="py-2">{r.by}</td>
