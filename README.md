@@ -1,7 +1,10 @@
 # The Pack Leader — Approvals
 
 Approval and scheduling platform for **The Pack Leader**, CBI K9's weekly email.
-A Growth Impact Group system. It follows the Pack Leader Operating Manual v2.0:
+A Growth Impact Group system.
+
+Live: https://pack-leader-platform.vercel.app (Vercel team `growth-impact-group`).
+Pushing to `main` deploys to production. It follows the Pack Leader Operating Manual v2.0:
 section 7 (approval workflow), Appendix A5 (Approval Packet) and A6 (logs).
 
 ## What it does
