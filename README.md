@@ -36,10 +36,17 @@ npm install
 npm run dev
 ```
 
-Data is stored in `data/db.json` (local only, not committed).
+Without `DATABASE_URL`, data is stored in `data/db.json` (local only, not committed).
 
-## Before going live on Vercel
+## Database (Supabase)
 
-Vercel's filesystem is read-only, so `lib/store.ts` needs a database adapter
-(for example Postgres from the Vercel Marketplace, created under the Growth Impact Group team).
-Only `readDb` and `updateDb` need replacing.
+Production data lives in Supabase Postgres. Set these in Vercel (team `growth-impact-group`,
+project `pack-leader-platform`):
+
+- `DATABASE_URL` — the Supabase connection string (the Vercel Supabase integration sets
+  `POSTGRES_URL`, which also works).
+- `DATABASE_CA_CERT` — contents of Supabase's root CA certificate (Project Settings → Database →
+  SSL configuration → Download certificate), so the connection is verified.
+
+On first use the app creates a private `pack_leader` schema with one table, `state`, with
+row-level security on. Supabase's public Data API doesn't expose that schema.
