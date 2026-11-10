@@ -12,12 +12,14 @@ import {
   submitForReview,
 } from "@/app/actions";
 import { EmailPreviewButton } from "@/app/email-preview";
+import { RichEditor } from "@/app/rich-editor";
 import { AlertBox, ErrorBox, STAGE_THEME, StageBadge } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
 import { autoChecks } from "@/lib/packet";
 import { deadlines, formatDate, formatPacific, suggestedSendTime, timingAlert, toPacificInput, upcomingWednesdays } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
-import { ROLE_LABEL, STAGE_LABEL, type Issue, type User } from "@/lib/types";
+import { bodyHtml, marginPx } from "@/lib/richtext";
+import { EDITABLE_STAGES, ROLE_LABEL, STAGE_LABEL, type Issue, type User } from "@/lib/types";
 
 const RULES: { key: keyof Issue["ruleCheck"]; label: string }[] = [
   { key: "noDashboardPlays", label: "No dashboard-feature plays" },
@@ -31,7 +33,7 @@ export default async function IssuePage({ params, searchParams }: PageProps<"/is
   const issue = db.issues.find((i) => i.id === id);
   if (!issue) notFound();
 
-  const editable = user.role === "operator" && (issue.stage === "DRAFT" || issue.stage === "CHANGES_REQUESTED");
+  const editable = user.role === "operator" && EDITABLE_STAGES.includes(issue.stage);
   const alert = timingAlert(issue);
   const error = typeof query.error === "string" ? query.error : undefined;
 
@@ -82,7 +84,7 @@ function PacketForm({ issue }: { issue: Issue }) {
       <input type="hidden" name="id" value={issue.id} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Approval packet</h2>
-        <EmailPreviewButton subjectFieldId="subject" bodyFieldId="body" />
+        <EmailPreviewButton subjectFieldId="subject" htmlFieldId="bodyHtml" marginFieldId="bodyMargin" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -105,8 +107,11 @@ function PacketForm({ issue }: { issue: Issue }) {
       </div>
 
       <div>
-        <label className="label" htmlFor="body">2. Full issue text (exactly as it will send)</label>
-        <textarea id="body" name="body" rows={16} className="input font-mono text-[13px] leading-relaxed" defaultValue={issue.body} />
+        <div className="label">2. Full issue text (exactly as it will send)</div>
+        <RichEditor initialHtml={bodyHtml(issue)} initialMargin={issue.bodyMargin} />
+        <p className="mt-1 text-xs text-slate-500">
+          Enter starts a new paragraph, Shift+Enter a new line. Tab and Shift+Tab indent. Use Heading 3 for section titles like THE NUMBER.
+        </p>
       </div>
 
       <div>
@@ -154,10 +159,18 @@ function PacketForm({ issue }: { issue: Issue }) {
       </label>
 
       <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-        <button className="btn-secondary">Save packet</button>
-        <button formAction={submitForReview} className="btn-primary">Submit for review</button>
+        <button className="btn-secondary">{issue.stage === "READY_FOR_REVIEW" ? "Save changes" : "Save packet"}</button>
+        {(issue.stage === "DRAFT" || issue.stage === "CHANGES_REQUESTED") && (
+          <button formAction={submitForReview} className="btn-primary">Submit for review</button>
+        )}
       </div>
-      <p className="text-xs text-slate-500">Submitting checks the saved packet, so save your latest changes first.</p>
+      <p className="text-xs text-slate-500">
+        {issue.stage === "READY_FOR_REVIEW"
+          ? "This packet is with the reviewer and Grace. Saving a text change clears the Review Agent scorecard so it gets checked again."
+          : issue.stage === "HELD"
+            ? "Held issues don't send. You can refresh the text here and reopen it as a draft when it's ready."
+            : "Submitting checks the saved packet, so save your latest changes first."}
+      </p>
     </form>
   );
 }
@@ -179,14 +192,21 @@ function PacketView({ issue }: { issue: Issue }) {
     <section className="card space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Approval packet</h2>
-        <EmailPreviewButton subject={issue.subject} body={issue.body} />
+        <EmailPreviewButton subject={issue.subject} html={bodyHtml(issue)} margin={issue.bodyMargin} />
       </div>
       <Field label="1. Subject line">
         <p className="font-medium">{issue.subject || "—"}</p>
         {issue.altSubjects && <p className="text-sm text-slate-500">Alternatives: {issue.altSubjects}</p>}
       </Field>
       <Field label="2. Full issue text">
-        <pre className="whitespace-pre-wrap rounded-md bg-slate-50 p-4 font-sans text-sm leading-relaxed">{issue.body || "—"}</pre>
+        {issue.body.trim() ? (
+          <div className="rounded-md bg-slate-50 py-4" style={{ paddingLeft: marginPx(issue.bodyMargin), paddingRight: marginPx(issue.bodyMargin) }}>
+            {/* Sanitized on save (lib/sanitize.ts); older plain-text bodies are escaped. */}
+            <div className="email-content" dangerouslySetInnerHTML={{ __html: bodyHtml(issue) }} />
+          </div>
+        ) : (
+          "—"
+        )}
       </Field>
       {issue.problemOfWeek && <Field label="Problem of the week">{issue.problemOfWeek}</Field>}
       <Field label="3. Verification checklist">

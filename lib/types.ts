@@ -20,6 +20,11 @@ export const STAGE_LABEL: Record<Stage, string> = {
   HELD: "Held",
 };
 
+// Stages where the Operator can still edit the packet. Approved is locked
+// (reopening it needs approval again) and Sent is locked so the archive
+// matches what went out.
+export const EDITABLE_STAGES: readonly Stage[] = ["DRAFT", "READY_FOR_REVIEW", "CHANGES_REQUESTED", "HELD"];
+
 export type Role = "operator" | "reviewer" | "approver";
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -87,7 +92,9 @@ export type Issue = {
   stage: Stage;
   subject: string;
   altSubjects: string;
-  body: string;
+  body: string; // plain-text copy, used by the checks
+  bodyHtml?: string; // formatted body from the editor (absent on older issues)
+  bodyMargin?: "narrow" | "normal" | "wide";
   problemOfWeek: string;
   checklist: ChecklistItem[];
   ruleCheck: RuleCheck;

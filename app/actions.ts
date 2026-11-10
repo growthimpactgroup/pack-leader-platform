@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { fromPacificInput, isWednesday, nextWednesday, pacificToday } from "@/lib/schedule";
+import { htmlToText } from "@/lib/richtext";
+import { sanitizeEmailHtml } from "@/lib/sanitize";
 import { updateDb } from "@/lib/store";
-import type { ChecklistItem, Db, Issue, Role, Stage, User, Verdict } from "@/lib/types";
+import { EDITABLE_STAGES, type ChecklistItem, type Db, type Issue, type Role, type Stage, type User, type Verdict } from "@/lib/types";
 
 const now = () => new Date().toISOString();
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -81,9 +83,15 @@ export async function savePacket(formData: FormData) {
   const id = str(formData, "id");
   const error = await updateDb((db) => {
     const issue = findIssue(db, id);
-    if (issue.stage !== "DRAFT" && issue.stage !== "CHANGES_REQUESTED") {
-      return "This packet is locked. Reopen it as a draft to edit.";
+    if (!EDITABLE_STAGES.includes(issue.stage)) {
+      return issue.stage === "APPROVED"
+        ? "Approved issues are locked. Use “Edit after approval” to reopen it; it will need approval again."
+        : "Sent issues are locked so the archive matches what went out.";
     }
+    const html = sanitizeEmailHtml(String(formData.get("bodyHtml") ?? ""));
+    const margin = str(formData, "bodyMargin");
+    const subject = str(formData, "subject");
+    const contentChanged = html !== (issue.bodyHtml ?? "") || subject !== issue.subject;
     const claims = formData.getAll("claim").map(String);
     const sources = formData.getAll("source").map(String);
     const verified = new Set(formData.getAll("verified").map(String));
@@ -96,9 +104,11 @@ export async function savePacket(formData: FormData) {
 
     Object.assign(issue, {
       issueDate: date || issue.issueDate,
-      subject: str(formData, "subject"),
+      subject,
       altSubjects: str(formData, "altSubjects"),
-      body: String(formData.get("body") ?? ""),
+      bodyHtml: html,
+      body: htmlToText(html),
+      bodyMargin: margin === "narrow" || margin === "wide" ? margin : "normal",
       problemOfWeek: str(formData, "problemOfWeek"),
       flags: str(formData, "flags"),
       checklist,
@@ -110,7 +120,13 @@ export async function savePacket(formData: FormData) {
       },
       testEmailSentAt: formData.has("testEmailSent") ? issue.testEmailSentAt ?? now() : null,
     });
-    log(issue, user, "Saved packet");
+    if (issue.stage === "READY_FOR_REVIEW" && contentChanged && issue.scorecard) {
+      // The scorecard was for the earlier text, so it no longer counts.
+      issue.scorecard = null;
+      log(issue, user, "Edited during review — scorecard cleared, needs reviewing again");
+    } else {
+      log(issue, user, issue.stage === "READY_FOR_REVIEW" ? "Edited during review" : "Saved packet");
+    }
     return null;
   });
   back(id, error ?? undefined);
