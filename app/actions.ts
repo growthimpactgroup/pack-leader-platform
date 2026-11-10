@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { fromPacificInput, isWednesday, nextWednesday, pacificToday } from "@/lib/schedule";
+import { demoMode } from "@/lib/demo";
+import { cancelScheduled, notify, sendNewsletter, type SendResult } from "@/lib/email";
 import { htmlToText } from "@/lib/richtext";
 import { sanitizeEmailHtml } from "@/lib/sanitize";
 import { updateDb } from "@/lib/store";
@@ -35,6 +37,19 @@ function log(issue: Issue, user: User, action: string, to?: Stage, note?: string
 function back(id: string, error?: string): never {
   revalidatePath("/", "layout");
   redirect(`/issues/${id}${error ? `?error=${encodeURIComponent(error)}` : ""}`);
+}
+
+// Records what happened to the emails an action sent. Email problems never undo
+// the workflow step itself; they show up in the issue's history instead.
+async function recordEmails(id: string, user: User, what: string, results: SendResult[]) {
+  if (results.length === 0) return;
+  await updateDb((db) => {
+    const issue = db.issues.find((i) => i.id === id);
+    if (!issue) return;
+    for (const r of results) {
+      log(issue, user, r.ok ? `Emailed: ${what}${demoMode().on ? ` (demo, sent to ${r.to})` : ""}` : `Email not sent: ${what} — ${r.error}`);
+    }
+  });
 }
 
 // ---------- Operator ----------
@@ -135,6 +150,7 @@ export async function savePacket(formData: FormData) {
 export async function submitForReview(formData: FormData) {
   const user = await requireRole("operator");
   const id = str(formData, "id");
+  let snapshot: Issue | null = null;
   const error = await updateDb((db) => {
     const issue = findIssue(db, id);
     if (issue.stage !== "DRAFT" && issue.stage !== "CHANGES_REQUESTED") return "Only a draft can be submitted.";
@@ -150,38 +166,62 @@ export async function submitForReview(formData: FormData) {
     issue.submittedAt = now();
     issue.scorecard = null;
     log(issue, user, "Submitted for review", "READY_FOR_REVIEW");
+    snapshot = structuredClone(issue);
     return null;
   });
+  if (snapshot) {
+    await recordEmails(id, user, "ready-for-review notice", await notify(["approver", "reviewer"], snapshot, "Ready for review", "The Approval Packet is in. Please review it by Wednesday 9:00 am Pacific."));
+  }
   back(id, error ?? undefined);
 }
 
 export async function reopenAsDraft(formData: FormData) {
   const user = await requireRole("operator");
   const id = str(formData, "id");
-  await updateDb((db) => {
+  const scheduledEmailId = await updateDb((db) => {
     const issue = findIssue(db, id);
     const wasApproved = issue.stage === "APPROVED";
-    if (!["READY_FOR_REVIEW", "APPROVED", "HELD"].includes(issue.stage)) return;
+    if (!["READY_FOR_REVIEW", "APPROVED", "HELD"].includes(issue.stage)) return null;
+    const pending = issue.scheduledEmailId ?? null;
     issue.decision = wasApproved ? null : issue.decision;
     issue.scheduledFor = null;
+    issue.scheduledEmailId = null;
     issue.holdReason = null;
     log(issue, user, wasApproved ? "Reopened after approval (needs approval again)" : "Reopened as draft", "DRAFT", str(formData, "note"));
+    return pending;
   });
+  if (scheduledEmailId) await cancelScheduled(scheduledEmailId);
   back(id);
 }
 
 export async function scheduleSend(formData: FormData) {
   const user = await requireRole("operator");
   const id = str(formData, "id");
+  const demo = demoMode().on;
+  let snapshot: Issue | null = null;
+  let previousEmailId: string | null = null;
   const error = await updateDb((db) => {
     const issue = findIssue(db, id);
     if (issue.stage !== "APPROVED" || issue.decision?.kind !== "APPROVED") return "Never schedule before approval.";
     const when = str(formData, "scheduledFor");
     if (!when) return "Pick a send time.";
-    issue.scheduledFor = fromPacificInput(when).toISOString();
-    log(issue, user, "Recorded scheduled send", undefined, `Scheduled in GoHighLevel for ${when} PT`);
+    const at = fromPacificInput(when);
+    if (demo && at.getTime() < Date.now()) return "Pick a time in the future.";
+    issue.scheduledFor = at.toISOString();
+    previousEmailId = issue.scheduledEmailId ?? null;
+    issue.scheduledEmailId = null;
+    log(issue, user, demo ? "Scheduled send (demo)" : "Recorded scheduled send", undefined, demo ? `Demo send at ${when} PT` : `Scheduled in GoHighLevel for ${when} PT`);
+    snapshot = structuredClone(issue);
     return null;
   });
+  // In demo mode the platform schedules the email itself, only to the demo address.
+  if (demo && snapshot) {
+    const s: Issue = snapshot;
+    if (previousEmailId) await cancelScheduled(previousEmailId);
+    const result = await sendNewsletter(s, { scheduledAt: s.scheduledFor! });
+    if (result.ok) await updateDb((db) => void (findIssue(db, id).scheduledEmailId = result.id));
+    await recordEmails(id, user, "newsletter scheduled", [result]);
+  }
   back(id, error ?? undefined);
 }
 
@@ -215,11 +255,29 @@ export async function saveResults(formData: FormData) {
   back(id);
 }
 
+export async function sendTestEmail(formData: FormData) {
+  const user = await requireRole("operator");
+  const id = str(formData, "id");
+  const issue = (await updateDb((db) => structuredClone(findIssue(db, id)))) as Issue;
+  if (!issue.body.trim()) back(id, "Write and save the issue text before sending a test.");
+  const result = await sendNewsletter(issue, { test: true });
+  if (result.ok) {
+    await updateDb((db) => {
+      const i = findIssue(db, id);
+      // Ticks "test email sent" on draft-stage packets, as the manual asks.
+      if (EDITABLE_STAGES.includes(i.stage)) i.testEmailSentAt = now();
+    });
+  }
+  await recordEmails(id, user, "test email of the saved issue", [result]);
+  back(id, result.ok ? undefined : `Test email not sent: ${result.error}`);
+}
+
 // ---------- Review Agent ----------
 
 export async function postScorecard(formData: FormData) {
   const user = await requireRole("reviewer", "approver");
   const id = str(formData, "id");
+  let snapshot: Issue | null = null;
   const error = await updateDb((db) => {
     const issue = findIssue(db, id);
     if (issue.stage !== "READY_FOR_REVIEW") return "Scorecards can only be posted on a packet that is ready for review.";
@@ -236,8 +294,13 @@ export async function postScorecard(formData: FormData) {
       postedAt: now(),
     };
     log(issue, user, `Posted scorecard: ${verdict} (${valueScore}/10)`);
+    snapshot = structuredClone(issue);
     return null;
   });
+  if (snapshot) {
+    const sc = (snapshot as Issue).scorecard!;
+    await recordEmails(id, user, "scorecard notice", await notify(["approver"], snapshot, `Review Agent verdict: ${sc.verdict} (${sc.valueScore}/10)`, sc.noteForApprover || sc.requiredFixes));
+  }
   back(id, error ?? undefined);
 }
 
@@ -248,6 +311,7 @@ export async function decide(formData: FormData) {
   const id = str(formData, "id");
   const kind = str(formData, "kind");
   const notes = str(formData, "notes");
+  let snapshot: Issue | null = null;
   const error = await updateDb((db) => {
     const issue = findIssue(db, id);
     if (issue.stage !== "READY_FOR_REVIEW") return "Only a packet that is ready for review can be decided.";
@@ -264,8 +328,18 @@ export async function decide(formData: FormData) {
     } else {
       return "Unknown decision.";
     }
+    snapshot = structuredClone(issue);
     return null;
   });
+  if (snapshot) {
+    const d = (snapshot as Issue).decision!;
+    await recordEmails(
+      id,
+      user,
+      d.kind === "APPROVED" ? "approval notice" : "changes notice",
+      await notify(["operator"], snapshot, d.kind === "APPROVED" ? "Approved — schedule the send" : "Changes requested", d.kind === "APPROVED" ? d.text : d.notes),
+    );
+  }
   back(id, error ?? undefined);
 }
 
@@ -273,15 +347,25 @@ export async function holdIssue(formData: FormData) {
   const user = await requireRole("approver", "operator");
   const id = str(formData, "id");
   const reason = str(formData, "reason");
+  let snapshot: Issue | null = null;
+  let pendingEmailId: string | null = null;
   const error = await updateDb((db) => {
     const issue = findIssue(db, id);
     if (issue.stage === "SENT" || issue.stage === "HELD") return "This issue can't be held.";
     if (!reason) return "Give a reason for holding the issue.";
     issue.holdReason = reason;
     issue.scheduledFor = null;
+    pendingEmailId = issue.scheduledEmailId ?? null;
+    issue.scheduledEmailId = null;
     log(issue, user, "Held — does not send", "HELD", reason);
+    snapshot = structuredClone(issue);
     return null;
   });
+  if (pendingEmailId) await cancelScheduled(pendingEmailId);
+  if (snapshot) {
+    const others = (["operator", "approver"] as const).filter((r) => r !== user.role);
+    await recordEmails(id, user, "hold notice", await notify([...others], snapshot, "Held — this week's issue won't send", reason));
+  }
   back(id, error ?? undefined);
 }
 

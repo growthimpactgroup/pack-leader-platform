@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
+import { demoMode } from "@/lib/demo";
 import { ROLE_LABEL } from "@/lib/types";
 import "./globals.css";
 
@@ -21,9 +22,15 @@ const NAV = [
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const user = await currentUser();
+  const demo = demoMode();
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-slate-50 text-slate-900">
+        {demo.on && (
+          <div className="bg-amber-400 px-4 py-1.5 text-center text-sm font-medium text-amber-950">
+            DEMO MODE · every email this platform sends goes only to {demo.recipient || "the demo address (not set yet)"}. Nothing goes to Grace, the reviewer or the list.
+          </div>
+        )}
         <header className="border-b border-slate-200 bg-white">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
             <Link href="/" className="font-semibold tracking-tight">

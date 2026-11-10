@@ -9,12 +9,14 @@ import {
   saveResults,
   savePacket,
   scheduleSend,
+  sendTestEmail,
   submitForReview,
 } from "@/app/actions";
 import { EmailPreviewButton } from "@/app/email-preview";
 import { RichEditor } from "@/app/rich-editor";
 import { AlertBox, ErrorBox, STAGE_THEME, StageBadge } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
+import { demoMode } from "@/lib/demo";
 import { autoChecks } from "@/lib/packet";
 import { deadlines, formatDate, formatPacific, suggestedSendTime, timingAlert, toPacificInput, upcomingWednesdays } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
@@ -280,7 +282,22 @@ function Deadlines({ issue }: { issue: Issue }) {
 
 function ActionPanel({ issue, user }: { issue: Issue; user: User }) {
   const s = issue.stage;
+  const demo = demoMode();
   const blocks: React.ReactNode[] = [];
+
+  if (user.role === "operator" && s !== "SENT") {
+    blocks.push(
+      <form key="test" action={sendTestEmail} className="space-y-1">
+        <input type="hidden" name="id" value={issue.id} />
+        <button className="btn-secondary w-full" disabled={!issue.body.trim()}>
+          Send test email
+        </button>
+        <p className="text-xs text-slate-500">
+          Sends the saved version{demo.on ? ` to ${demo.recipient || "the demo address"} (demo mode)` : " to Grace"}. Save your changes first.
+        </p>
+      </form>,
+    );
+  }
 
   if (user.role === "operator") {
     if (s === "READY_FOR_REVIEW") {
@@ -301,8 +318,14 @@ function ActionPanel({ issue, user }: { issue: Issue; user: User }) {
           <label className="label" htmlFor="scheduledFor">Scheduled send (Pacific)</label>
           <input id="scheduledFor" type="datetime-local" name="scheduledFor" className="input" defaultValue={value} />
           {!suggested && <p className="text-xs text-amber-700">Approval landed after Thursday 10:00 am. The manual is silent here, so confirm the send time with Grace.</p>}
-          <p className="text-xs text-slate-500">Schedule it in GoHighLevel first, then record the time here.</p>
-          <button className="btn-primary w-full">{issue.scheduledFor ? "Update scheduled time" : "Record scheduled send"}</button>
+          <p className="text-xs text-slate-500">
+            {demo.on
+              ? `Demo mode: the platform emails the issue to ${demo.recipient || "the demo address"} at this time. GoHighLevel and the list aren't touched.`
+              : "Schedule it in GoHighLevel first, then record the time here."}
+          </p>
+          <button className="btn-primary w-full">
+            {issue.scheduledFor ? "Update scheduled time" : demo.on ? "Schedule demo send" : "Record scheduled send"}
+          </button>
         </form>,
       );
       if (issue.scheduledFor) {

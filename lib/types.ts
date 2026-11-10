@@ -104,6 +104,7 @@ export type Issue = {
   scorecard: Scorecard | null;
   decision: Decision | null;
   scheduledFor: string | null; // ISO instant
+  scheduledEmailId?: string | null; // demo mode: the Resend email scheduled for that time
   sentAt: string | null;
   holdReason: string | null;
   results: SendResults;
