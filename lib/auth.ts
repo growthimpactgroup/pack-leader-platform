@@ -1,12 +1,17 @@
 import "server-only";
-import { headers } from "next/headers";
-import { matchAccount } from "./accounts";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE, readSession } from "./session";
 import type { Role, User } from "./types";
 
+export async function signedInUser(): Promise<User | null> {
+  const account = await readSession((await cookies()).get(SESSION_COOKIE)?.value);
+  return account ? { role: account.role, name: account.name } : null;
+}
+
 export async function currentUser(): Promise<User> {
-  const account = matchAccount((await headers()).get("authorization"));
-  if (!account) throw new Error("Not signed in.");
-  return { role: account.role, name: account.name };
+  const user = await signedInUser();
+  if (!user) throw new Error("Not signed in.");
+  return user;
 }
 
 export async function requireRole(...roles: Role[]): Promise<User> {

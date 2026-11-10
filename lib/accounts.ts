@@ -1,6 +1,6 @@
 import type { Role } from "./types";
 
-// Each role signs in with its own Basic Auth username and password, so an
+// Each role signs in with its own username and password, so an
 // approval can only come from the Final Approver's login (manual section 3:
 // one person never both approves and sends). Kept free of server-only imports
 // so proxy.ts can use it too.
@@ -20,13 +20,4 @@ export function accounts(): Account[] {
       : null,
   ];
   return list.filter((a): a is Account => a !== null);
-}
-
-export function matchAccount(authorization: string | null): Account | null {
-  if (!authorization?.startsWith("Basic ")) return null;
-  const decoded = atob(authorization.slice(6));
-  const sep = decoded.indexOf(":");
-  const user = decoded.slice(0, sep);
-  const pass = decoded.slice(sep + 1);
-  return accounts().find((a) => a.user === user && a.pass === pass) ?? null;
 }

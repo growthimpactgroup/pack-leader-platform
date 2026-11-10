@@ -28,7 +28,7 @@ The Operator still schedules the send in GoHighLevel and records it here.
 
 ## Sign-in
 
-One Basic Auth login per role, set by environment variables (see `.env.example`):
+One login per role on the /login page (a signed cookie keeps you signed in for 7 days; changing any password signs everyone out), set by environment variables (see `.env.example`):
 Operator, Final Approver (Grace) and Review Agent. The role decides what each person can do.
 
 ## Local development

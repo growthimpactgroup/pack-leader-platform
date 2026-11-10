@@ -1,25 +1,27 @@
-// Basic Auth gate for the whole app, one login per role (see lib/auth.ts).
+// Sign-in gate for the whole app: every page needs a valid session cookie,
+// otherwise the visitor is sent to /login (see lib/session.ts).
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { accounts, matchAccount } from "@/lib/accounts";
+import { accounts } from "@/lib/accounts";
+import { SESSION_COOKIE, readSession } from "@/lib/session";
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (accounts().length === 0) {
     return new Response("Pack Leader logins are not configured.", { status: 500 });
   }
+  const { pathname, search } = request.nextUrl;
+  if (pathname === "/login") return NextResponse.next();
 
-  if (matchAccount(request.headers.get("authorization"))) {
+  if (await readSession(request.cookies.get(SESSION_COOKIE)?.value)) {
     return NextResponse.next();
   }
 
-  return new Response("Authentication required.", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Pack Leader"' },
-  });
+  const url = request.nextUrl.clone();
+  url.pathname = "/login";
+  url.search = pathname === "/" && !search ? "" : `?next=${encodeURIComponent(pathname + search)}`;
+  return NextResponse.redirect(url);
 }
 
 export const config = {
-  // favicon.ico stays behind the gate: there is no icon file, so the request
-  // falls through to the not-found page, which renders the signed-in layout.
   matcher: "/((?!_next/static|_next/image).*)",
 };
