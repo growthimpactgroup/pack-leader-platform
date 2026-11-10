@@ -42,3 +42,4 @@ next-env.d.ts
 
 # local data store (dev only)
 /data/
+!.env.example
