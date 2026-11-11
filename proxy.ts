@@ -11,6 +11,8 @@ export async function proxy(request: NextRequest) {
   }
   const { pathname, search } = request.nextUrl;
   if (pathname === "/login") return NextResponse.next();
+  // Scheduled jobs check their own secret (CRON_SECRET) instead of a session.
+  if (pathname.startsWith("/api/cron/")) return NextResponse.next();
 
   if (await readSession(request.cookies.get(SESSION_COOKIE)?.value)) {
     return NextResponse.next();

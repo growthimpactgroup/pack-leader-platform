@@ -112,6 +112,27 @@ export function formatPacific(date: Date): string {
   );
 }
 
+// Frances works from the Philippines, so her emails show Manila time too.
+export const PH_TZ = "Asia/Manila";
+
+export function formatManila(date: Date): string {
+  return (
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: PH_TZ,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date) + " PH"
+  );
+}
+
+// "Wed, Nov 18, 9:00 AM PT (Thu, Nov 19, 1:00 AM PH)"
+export function formatBoth(date: Date): string {
+  return `${formatPacific(date)} (${formatManila(date)})`;
+}
+
 export function formatDate(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", {

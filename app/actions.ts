@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
-import { fromPacificInput, isWednesday, nextWednesday, pacificToday } from "@/lib/schedule";
+import { formatBoth, fromPacificInput, isWednesday, nextWednesday, pacificToday } from "@/lib/schedule";
 import { demoMode } from "@/lib/demo";
 import { cancelScheduled, notify, sendNewsletter, type SendResult } from "@/lib/email";
 import { htmlToText } from "@/lib/richtext";
@@ -222,19 +222,34 @@ export async function scheduleSend(formData: FormData) {
     if (result.ok) await updateDb((db) => void (findIssue(db, id).scheduledEmailId = result.id));
     await recordEmails(id, user, "newsletter scheduled", [result]);
   }
+  if (snapshot) {
+    const s: Issue = snapshot;
+    await recordEmails(
+      id,
+      user,
+      "scheduled notice",
+      await notify(["operator"], s, `Scheduled for ${formatBoth(new Date(s.scheduledFor!))}`, demo ? "Demo mode: the platform will send it to the demo address at that time." : "Recorded as scheduled in GoHighLevel."),
+    );
+  }
   back(id, error ?? undefined);
 }
 
 export async function markSent(formData: FormData) {
   const user = await requireRole("operator");
   const id = str(formData, "id");
+  let snapshot: Issue | null = null;
   const error = await updateDb((db) => {
     const issue = findIssue(db, id);
     if (issue.stage !== "APPROVED" || !issue.scheduledFor) return "Schedule the approved issue before marking it sent.";
     issue.sentAt = now();
     log(issue, user, "Marked sent and archived", "SENT");
+    snapshot = structuredClone(issue);
     return null;
   });
+  if (snapshot) {
+    const s: Issue = snapshot;
+    await recordEmails(id, user, "sent notice", await notify(["operator"], s, "Sent and archived", `Marked sent ${formatBoth(new Date(s.sentAt!))}. Log the results once they come in.`));
+  }
   back(id, error ?? undefined);
 }
 

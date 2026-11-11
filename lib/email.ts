@@ -1,6 +1,7 @@
 import "server-only";
 import { demoMode } from "./demo";
 import { bodyHtml, htmlToText, marginPx } from "./richtext";
+import { formatBoth, formatDate } from "./schedule";
 import type { Issue, Role } from "./types";
 
 // Email sending through Resend (https://resend.com), configured by:
@@ -133,15 +134,56 @@ function escapeHtml(s: string) {
 
 // ---------- Workflow notifications ----------
 
+const FOOTER = `<p style="margin:0;font-size:12px;color:#64748b">The Pack Leader approval platform · Growth Impact Group</p>`;
+const wrap = (inner: string) =>
+  `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1e293b;max-width:560px">${inner}${FOOTER}</div>`;
+const button = (href: string, label: string) =>
+  `<p style="margin:0 0 16px"><a href="${href}" style="background:#4f46e5;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block">${escapeHtml(label)}</a></p>`;
+
 export async function notify(roles: Role[], issue: Issue, headline: string, detail?: string): Promise<SendResult[]> {
-  const link = `${appUrl()}/issues/${issue.id}`;
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1e293b;max-width:560px">
-<p style="margin:0 0 12px"><strong>${escapeHtml(headline)}</strong></p>
+  const html = wrap(`<p style="margin:0 0 12px"><strong>${escapeHtml(headline)}</strong></p>
 ${detail ? `<p style="margin:0 0 12px;white-space:pre-wrap">${escapeHtml(detail)}</p>` : ""}
 <p style="margin:0 0 12px">Subject line: ${escapeHtml(issue.subject || "—")}</p>
-<p style="margin:0 0 16px"><a href="${link}" style="background:#4f46e5;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block">Open Pack Leader #${issue.number}</a></p>
-<p style="margin:0;font-size:12px;color:#64748b">The Pack Leader approval platform · Growth Impact Group</p></div>`;
+${button(`${appUrl()}/issues/${issue.id}`, `Open Pack Leader #${issue.number}`)}`);
   return Promise.all(
     roles.map((role) => send({ to: roleEmail(role), intendedFor: ROLE_NAME[role], subject: `Pack Leader #${issue.number}: ${headline}`, html })),
   );
+}
+
+// ---------- Daily schedule (8:00 pm Philippine time) ----------
+
+export type DailySchedule = {
+  upcoming: Issue[]; // scheduled to send in the next 24 hours
+  unscheduled: Issue[]; // planned for today (Pacific) but not scheduled, sent or held
+  next: Issue | null; // the next scheduled send after that window
+};
+
+export function sendDailySchedule(day: DailySchedule, now: Date): Promise<SendResult> {
+  const line = (i: Issue, extra: string) =>
+    `<li style="margin:0 0 8px"><a href="${appUrl()}/issues/${i.id}" style="color:#4f46e5"><strong>Pack Leader #${i.number}</strong></a> — ${escapeHtml(i.subject || "no subject yet")}<br><span style="color:#475569">${escapeHtml(extra)}</span></li>`;
+  const list = (items: string[]) => `<ul style="margin:0 0 16px;padding-left:20px">${items.join("")}</ul>`;
+
+  const parts: string[] = [];
+  if (day.upcoming.length) {
+    parts.push(`<p style="margin:0 0 8px"><strong>Going out in the next 24 hours</strong></p>`);
+    parts.push(list(day.upcoming.map((i) => line(i, `Sends ${formatBoth(new Date(i.scheduledFor!))}`))));
+  } else {
+    parts.push(`<p style="margin:0 0 12px"><strong>Nothing is scheduled to go out in the next 24 hours.</strong></p>`);
+  }
+  if (day.unscheduled.length) {
+    parts.push(`<p style="margin:0 0 8px;color:#b45309"><strong>Planned for today but not scheduled</strong></p>`);
+    parts.push(list(day.unscheduled.map((i) => line(i, `Planned for ${formatDate(i.issueDate)} · stage: ${i.stage.replace(/_/g, " ").toLowerCase()}`))));
+  }
+  if (day.next) {
+    parts.push(`<p style="margin:0 0 8px"><strong>Next scheduled after that</strong></p>`);
+    parts.push(list([line(day.next, `Sends ${formatBoth(new Date(day.next.scheduledFor!))}`)]));
+  }
+
+  const subject = day.upcoming.length
+    ? `Today's schedule: ${day.upcoming.map((i) => `#${i.number}`).join(", ")} going out`
+    : "Today's schedule: nothing going out";
+  const html = wrap(`<p style="margin:0 0 12px;color:#64748b;font-size:13px">Daily schedule · ${escapeHtml(formatBoth(now))}</p>
+${parts.join("\n")}
+${button(`${appUrl()}/schedule`, "Open the schedule")}`);
+  return send({ to: roleEmail("operator"), intendedFor: ROLE_NAME.operator, subject: `Pack Leader — ${subject}`, html });
 }
