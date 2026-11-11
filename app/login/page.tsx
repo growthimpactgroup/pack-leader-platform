@@ -32,11 +32,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           </label>
           <label className="block">
             <span className="label">Password</span>
-            <input name="password" type="password" autoComplete="current-password" required className="input mt-1" />
+            <input name="password" type="password" autoComplete="current-password" className="input mt-1" />
           </label>
           <button className="btn-primary w-full">Sign in</button>
         </form>
-        <p className="mt-4 text-center text-xs text-slate-400">Use the login for your role: Operator, Approver or Reviewer.</p>
+        <p className="mt-4 text-center text-xs text-slate-400">Use the login for your role. The Final Approver only needs a username: leave the password blank.</p>
       </div>
     </div>
   );

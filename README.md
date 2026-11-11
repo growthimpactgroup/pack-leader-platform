@@ -29,7 +29,7 @@ The Operator still schedules the send in GoHighLevel and records it here.
 ## Sign-in
 
 One login per role on the /login page (a signed cookie keeps you signed in for 7 days; changing any password signs everyone out), set by environment variables (see `.env.example`):
-Operator, Final Approver (Grace) and Review Agent. The role decides what each person can do.
+Operator, Final Approver (Grace) and Review Agent. The role decides what each person can do. Grace signs in with her username only (no password); the other two need both.
 
 ## Local development
 

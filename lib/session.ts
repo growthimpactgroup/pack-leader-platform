@@ -54,7 +54,9 @@ export async function readSession(token: string | undefined): Promise<Account | 
 export function checkLogin(user: string, pass: string): Account | null {
   let found: Account | null = null;
   for (const a of accounts()) {
-    if (same(a.user, user) & same(a.pass, pass)) found = a;
+    // An account without a password only needs its username; whatever was typed
+    // in the password box is ignored.
+    if (same(a.user, user) & (a.pass === "" ? 1 : same(a.pass, pass))) found = a;
   }
   return found;
 }
