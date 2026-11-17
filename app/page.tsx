@@ -12,6 +12,8 @@ const YOUR_TURN = {
   approver: ["READY_FOR_REVIEW"],
 } as const;
 
+export const metadata = { title: "CBI Newsletter" };
+
 export default async function PipelinePage({ searchParams }: PageProps<"/">) {
   const [user, db, params] = await Promise.all([currentUser(), readDb(), searchParams]);
   const issues = [...db.issues].sort((a, b) => b.number - a.number);
@@ -25,23 +27,25 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
-          <p className="text-sm text-slate-500">Every issue, by stage. Nothing schedules until Grace approves in writing.</p>
+          <h1 className="text-2xl font-bold tracking-tight">CBI Newsletter</h1>
+          <p className="text-sm text-slate-600">
+            The Pack Leader, our weekly Wednesday email. Write it, get Grace’s approval, then schedule it.
+          </p>
         </div>
         {user.role === "operator" && (
           <Link href="/issues/new" className="btn-primary">
-            New issue
+            + Start a new email
           </Link>
         )}
       </div>
 
       <section className={`card ${thisWeek ? `border-l-4 ${STAGE_THEME[thisWeek.stage].border}` : ""}`}>
-        <h2 className="label">This week · {formatDate(thisWeekDate)}</h2>
+        <h2 className="text-lg font-semibold">This Wednesday’s email <span className="font-normal text-slate-500">· {formatDate(thisWeekDate)}</span></h2>
         {thisWeek ? (
           <div className="mt-2 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               <Link href={`/issues/${thisWeek.id}`} className="text-lg font-medium hover:underline">
-                #{thisWeek.number} · {thisWeek.subject || "Untitled"}
+                #{thisWeek.number} · {thisWeek.subject || "No subject yet"}
               </Link>
               <StageBadge stage={thisWeek.stage} />
             </div>
@@ -49,12 +53,12 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
           </div>
         ) : (
           <p className="mt-2 text-sm text-slate-600">
-            No issue planned for this Wednesday yet.
+            Nothing written for this Wednesday yet.
             {user.role === "operator" && (
               <>
                 {" "}
                 <Link href="/issues/new" className="font-medium text-indigo-600 hover:underline">
-                  Start it now
+                  Start writing it
                 </Link>
                 .
               </>
@@ -65,12 +69,13 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
 
       {yourTurn.length > 0 && (
         <section className="card">
-          <h2 className="label">Waiting on you</h2>
+          <h2 className="text-lg font-semibold">Your to-do list</h2>
+          <p className="text-sm text-slate-500">Emails that need something from you.</p>
           <ul className="mt-2 divide-y divide-slate-100">
             {yourTurn.map((i) => (
-              <li key={i.id} className={`flex flex-wrap items-center gap-3 border-l-4 py-2 pl-3 text-sm ${STAGE_THEME[i.stage].border}`}>
+              <li key={i.id} className={`flex flex-wrap items-center gap-3 border-l-4 py-3 pl-3 text-sm ${STAGE_THEME[i.stage].border}`}>
                 <Link href={`/issues/${i.id}`} className="font-medium hover:underline">
-                  #{i.number} · {i.subject || "Untitled"}
+                  #{i.number} · {i.subject || "No subject yet"}
                 </Link>
                 <StageBadge stage={i.stage} />
                 <span className="text-slate-500">{formatDate(i.issueDate)}</span>
@@ -81,9 +86,10 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
       )}
 
       <section className="card p-0">
+        <h2 className="px-5 pt-4 text-lg font-semibold">All emails</h2>
         {/* Tabs are links (?stage=…), so a tab can be bookmarked or shared. */}
         <nav aria-label="Issues by stage" className="flex gap-1 overflow-x-auto border-b border-slate-200 px-3 pt-3">
-          <Tab href="/" active={!active} label="All" count={issues.length} activeClass="border-indigo-600 bg-indigo-50 text-indigo-800" />
+          <Tab href="/" active={!active} label="Everything" count={issues.length} activeClass="border-indigo-600 bg-indigo-50 text-indigo-800" />
           {STAGES.map((stage) => (
             <Tab
               key={stage}
@@ -99,7 +105,7 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
 
         <div className="p-4">
           {shown.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">{active ? `No issues in ${STAGE_LABEL[active]}.` : "No issues yet."}</p>
+            <p className="py-8 text-center text-sm text-slate-500">{active ? `No emails are “${STAGE_LABEL[active].toLowerCase()}” right now.` : "No emails yet."}</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {shown.map((i) => (
@@ -133,14 +139,14 @@ function IssueCard({ issue, showStage }: { issue: Issue; showStage: boolean }) {
   return (
     <Link
       href={`/issues/${issue.id}`}
-      className={`block rounded-lg border border-l-4 border-slate-200 bg-white p-3 text-sm shadow-sm hover:shadow-md ${STAGE_THEME[issue.stage].border}`}
+      className={`block rounded-lg border border-l-4 border-slate-200 bg-white p-4 text-sm shadow-sm transition hover:shadow-md ${STAGE_THEME[issue.stage].border}`}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-medium">#{issue.number}</span>
+        <span className="font-semibold">Email #{issue.number}</span>
         {showStage && <StageBadge stage={issue.stage} />}
       </div>
-      <div className="mt-1 truncate text-slate-700">{issue.subject || "Untitled"}</div>
-      <div className="mt-1 text-xs text-slate-500">{formatDate(issue.issueDate)}</div>
+      <div className="mt-1.5 line-clamp-2 text-slate-700">{issue.subject || "No subject yet"}</div>
+      <div className="mt-2 text-xs text-slate-500">Goes out {formatDate(issue.issueDate)}</div>
     </Link>
   );
 }

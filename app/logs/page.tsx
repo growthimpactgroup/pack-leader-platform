@@ -14,12 +14,12 @@ export default async function LogsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Logs</h1>
-        <p className="text-sm text-slate-500">Approval Log and Send Log fill in automatically. Add a Run Log line at the end of each working session.</p>
+        <h1 className="text-2xl font-bold tracking-tight">History</h1>
+        <p className="text-sm text-slate-500">Approvals and sent emails are recorded automatically. At the end of each working session, add a short note on what you did and what comes next.</p>
       </div>
 
       <section className="card overflow-x-auto">
-        <h2 className="mb-3 text-lg font-semibold">Approval Log</h2>
+        <h2 className="mb-3 text-lg font-semibold">Approvals</h2>
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="text-xs uppercase text-slate-500">
             <tr>
@@ -50,7 +50,7 @@ export default async function LogsPage() {
       </section>
 
       <section className="card overflow-x-auto">
-        <h2 className="mb-3 text-lg font-semibold">Send Log</h2>
+        <h2 className="mb-3 text-lg font-semibold">Sent emails and results</h2>
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="text-xs uppercase text-slate-500">
             <tr>
@@ -83,7 +83,7 @@ export default async function LogsPage() {
       </section>
 
       <section className="card space-y-4">
-        <h2 className="text-lg font-semibold">Run Log</h2>
+        <h2 className="text-lg font-semibold">Work notes</h2>
         <form action={addRunLog} className="grid gap-2 sm:grid-cols-[110px_1fr_1fr_auto]">
           <select name="issueNumber" className="input" defaultValue="">
             <option value="">No issue</option>

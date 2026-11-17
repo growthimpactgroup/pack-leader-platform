@@ -36,7 +36,7 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Email Topic Ideas</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Email Topic Ideas</h1>
           <p className="max-w-2xl text-sm text-slate-500">
             Possible subjects for the CBI K9 email list. Each one says what pet-care owners aren’t paying attention to, why they’d care right now, and
             the number that proves it. Pick one to start a draft.

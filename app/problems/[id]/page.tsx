@@ -24,7 +24,7 @@ export default async function ProblemPage({ params, searchParams }: PageProps<"/
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <span className="rounded bg-slate-900 px-2 py-0.5 text-sm font-semibold text-white">{topicLabel(problem.code)}</span>
-          <h1 className="text-2xl font-semibold tracking-tight">{problem.title}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{problem.title}</h1>
           <ProblemStatusBadge label={status.label} stage={status.stage} />
         </div>
         <p className="mt-1 text-sm text-slate-500">

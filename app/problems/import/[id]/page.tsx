@@ -19,7 +19,7 @@ export default async function ImportReviewPage({ params }: PageProps<"/problems/
         <Link href="/problems" className="text-sm text-slate-500 hover:text-slate-800">
           ← Email Topic Ideas
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Check the topics from {imp.fileName}</h1>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight">Check the topics from {imp.fileName}</h1>
         <p className="text-sm text-slate-500">
           Found {imp.items.length} topic{imp.items.length === 1 ? "" : "s"}. Fix anything that was split wrongly, untick what you don’t want, then add them.
         </p>

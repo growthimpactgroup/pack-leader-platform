@@ -47,7 +47,7 @@ export default async function IssuePage({ params, searchParams }: PageProps<"/is
           ← Pipeline
         </Link>
         <div className={`mt-2 flex flex-wrap items-center gap-3 border-l-4 pl-3 ${STAGE_THEME[issue.stage].border}`}>
-          <h1 className="text-2xl font-semibold tracking-tight">Pack Leader #{issue.number}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Pack Leader #{issue.number}</h1>
           <StageBadge stage={issue.stage} />
           <span className="text-sm text-slate-500">Planned send {formatDate(issue.issueDate)}, 10:00 am</span>
         </div>
@@ -461,7 +461,7 @@ function ActionPanel({ issue, user }: { issue: Issue; user: User }) {
 
   return (
     <section className="card space-y-3">
-      <h2 className="label">Next step · {ROLE_LABEL[user.role]}</h2>
+      <h2 className="label">What to do next</h2>
       {blocks.length ? blocks : <p className="text-sm text-slate-500">Nothing for you to do at the {STAGE_LABEL[s].toLowerCase()} stage.</p>}
     </section>
   );

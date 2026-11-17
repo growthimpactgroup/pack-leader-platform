@@ -3,7 +3,7 @@ import { signedInUser } from "@/lib/auth";
 import { safeNext } from "@/lib/session";
 import { signIn } from "./actions";
 
-export const metadata = { title: "Sign in — The Pack Leader" };
+export const metadata = { title: "Sign in — CBI Newsletter" };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const [params, user] = await Promise.all([searchParams, signedInUser()]);
@@ -16,8 +16,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 text-xl text-white shadow-md">🐾</div>
-          <h1 className="text-2xl font-semibold tracking-tight">The Pack Leader</h1>
-          <p className="text-sm text-slate-500">Approvals and scheduling · CBI K9</p>
+          <h1 className="text-2xl font-bold tracking-tight">CBI Newsletter</h1>
+          <p className="text-sm text-slate-500">The Pack Leader · weekly email for CBI K9</p>
         </div>
 
         <form action={signIn} className="card space-y-4 shadow-md">

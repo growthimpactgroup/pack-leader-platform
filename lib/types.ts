@@ -12,12 +12,12 @@ export const STAGES = [
 export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABEL: Record<Stage, string> = {
-  DRAFT: "Draft",
-  READY_FOR_REVIEW: "Ready for review",
-  CHANGES_REQUESTED: "Changes requested",
+  DRAFT: "Being written",
+  READY_FOR_REVIEW: "Waiting for review",
+  CHANGES_REQUESTED: "Needs changes",
   APPROVED: "Approved",
   SENT: "Sent",
-  HELD: "Held",
+  HELD: "On hold",
 };
 
 // Stages where the Operator can still edit the packet. Approved is locked
@@ -28,9 +28,9 @@ export const EDITABLE_STAGES: readonly Stage[] = ["DRAFT", "READY_FOR_REVIEW", "
 export type Role = "operator" | "reviewer" | "approver";
 
 export const ROLE_LABEL: Record<Role, string> = {
-  operator: "Pack Leader Operator",
-  reviewer: "Review Agent",
-  approver: "Final Approver",
+  operator: "Writes and schedules",
+  reviewer: "Reviewer",
+  approver: "Gives final approval",
 };
 
 export type User = { role: Role; name: string };

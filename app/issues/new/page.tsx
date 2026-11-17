@@ -14,7 +14,7 @@ export default async function NewIssuePage({ searchParams }: PageProps<"/issues/
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">New issue · Pack Leader #{nextNumber}</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Start a new email · Pack Leader #{nextNumber}</h1>
       <ErrorBox message={typeof params.error === "string" ? params.error : undefined} />
       <form action={createIssue} className="card space-y-4">
         <div>

@@ -15,9 +15,9 @@ export default async function SchedulePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Schedule</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Send calendar</h1>
         <p className="text-sm text-slate-500">
-          One issue every Wednesday at 10:00 am. Packet due Tuesday 3:00 pm, approval by Wednesday 9:00 am (all Pacific).
+          One email goes out every Wednesday at 10:00 am. The draft is due Tuesday at 3:00 pm and Grace approves it by Wednesday at 9:00 am. All times are Pacific.
         </p>
         <div className="mt-3">
           <StageLegend />

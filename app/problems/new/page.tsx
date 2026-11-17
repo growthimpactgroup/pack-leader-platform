@@ -13,7 +13,7 @@ export default async function NewProblemPage({ searchParams }: PageProps<"/probl
       <Link href="/problems" className="text-sm text-slate-500 hover:text-slate-800">
         ← Email Topic Ideas
       </Link>
-      <h1 className="text-2xl font-semibold tracking-tight">Add a topic idea</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Add a topic idea</h1>
       <ErrorBox message={typeof params.error === "string" ? params.error : undefined} />
       <form action={createProblem} className="card space-y-4">
         <ProblemFields />
