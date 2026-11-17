@@ -1,7 +1,7 @@
 import "server-only";
 import { extractLinks, extractText, getDocumentProxy } from "unpdf";
 import { hostname } from "./problems";
-import type { Reference } from "./types";
+import type { Reference, TopicContext } from "./types";
 
 // Splits a PDF of problems into separate cards. PDFs vary a lot, so this is a
 // best guess: the Operator reviews (and can fix) every card before it is saved.
@@ -10,8 +10,20 @@ import type { Reference } from "./types";
 // "Problem 4: …" — and treats each as one problem: the first line is the title,
 // the lines after it are the body, and any links become references. Without
 // numbering it falls back to blocks separated by blank lines.
+//
+// Labelled paragraphs fill the topic's context fields: "What owners miss: …",
+// "Why they care now: …", "The number: …", "Notes: …" and "Source: …" (the
+// source text becomes the label of the link that follows it).
 
-export type ParsedProblem = { title: string; body: string; references: Reference[] };
+export type ParsedProblem = TopicContext & { title: string; body: string; references: Reference[]; notes?: string };
+
+const LABELS: { re: RegExp; key: keyof TopicContext | "notes" | "source" }[] = [
+  { re: /^what (?:owners|they) (?:miss|aren[’']t paying attention to|overlook)\s*:\s*/i, key: "overlooked" },
+  { re: /^why (?:they care|it matters)(?: right)?(?: now)?\s*:\s*/i, key: "whyNow" },
+  { re: /^(?:the number(?: that backs it up)?|the stat(?:istic)?|proof)\s*:\s*/i, key: "stat" },
+  { re: /^notes?(?: for whoever writes it)?\s*:\s*/i, key: "notes" },
+  { re: /^source\s*:\s*/i, key: "source" },
+];
 
 const START = /^(?:(?:problem|issue|topic)\s*#?\s*(\d{1,3})\b[\s:.)\-–—]*|#\s*(\d{1,3})\b[\s:.)\-–—]*|(\d{1,3})[.)]\s+)(.*)$/i;
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/g;
@@ -102,13 +114,36 @@ function toProblem(block: string[], numbered: boolean): ParsedProblem {
     title = sentence ?? `${title.slice(0, 117)}…`;
   }
 
-  const body = joinParagraphs(rest);
-  const refs: Reference[] = [];
-  for (const raw of (title + "\n" + body).match(URL_RE) ?? []) {
+  const paras = joinParagraphs(rest).split("\n\n").filter(Boolean);
+  const urls: string[] = [];
+  for (const raw of (title + "\n" + paras.join("\n")).match(URL_RE) ?? []) {
     const url = raw.replace(/[.,;:]+$/, "");
-    if (!refs.some((r) => r.url === url)) refs.push({ label: hostname(url) || url, url });
+    if (!urls.includes(url)) urls.push(url);
   }
-  return { title: title.trim(), body, references: refs };
+
+  const fields: Partial<Record<keyof TopicContext | "notes", string>> = {};
+  const sources: string[] = [];
+  const other: string[] = [];
+  // PDF line breaks after a full stop split one field into several paragraphs,
+  // so an unlabelled paragraph continues the field above it.
+  let last: (typeof LABELS)[number]["key"] | null = null;
+  for (const p of paras) {
+    const hit = LABELS.find((l) => l.re.test(p));
+    const text = (hit ? p.replace(hit.re, "") : p).replace(URL_RE, "").trim();
+    if (hit) last = hit.key;
+    if (!text) continue;
+    if (!last) other.push(text);
+    else if (last === "source") {
+      if (hit) sources.push(text.replace(/[.\s]+$/, ""));
+      else sources[sources.length - 1] = `${sources[sources.length - 1]} ${text}`.replace(/[.\s]+$/, "");
+    } else fields[last] = fields[last] ? `${fields[last]}${hit ? "\n\n" : " "}${text}` : text;
+  }
+  // "Source: …" names the link when there's one of each per topic.
+  const refs: Reference[] = urls.map((url, i) => ({
+    label: (sources.length === urls.length ? sources[i] : "") || hostname(url) || url,
+    url,
+  }));
+  return { title: title.trim(), body: other.join("\n\n"), references: refs, ...fields };
 }
 
 // PDF text breaks lines mid-sentence; rejoin them into paragraphs.

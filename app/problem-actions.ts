@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { parseProblemsPdf } from "@/lib/pdf-problems";
-import { formatCode, parseReferences } from "@/lib/problems";
+import { formatCode, parseReferences, topicLabel } from "@/lib/problems";
 import { htmlToText, textToHtml } from "@/lib/richtext";
 import { upcomingWednesdays } from "@/lib/schedule";
 import { updateDb } from "@/lib/store";
-import type { Db, Issue, Problem, Reference, User } from "@/lib/types";
+import type { Db, Issue, Problem, Reference, TopicContext, User } from "@/lib/types";
 
 const now = () => new Date().toISOString();
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -17,7 +17,9 @@ const done = (path: string, error?: string): never => {
   redirect(error ? `${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(error)}` : path);
 };
 
-function addProblem(db: Db, user: User, p: { title: string; body: string; references: Reference[]; notes: string; source: string }): Problem {
+const context = (f: FormData): TopicContext => ({ overlooked: str(f, "overlooked"), whyNow: str(f, "whyNow"), stat: str(f, "stat") });
+
+function addProblem(db: Db, user: User, p: TopicContext & { title: string; body: string; references: Reference[]; notes: string; source: string }): Problem {
   db.problemSeq = Math.max(db.problemSeq, ...db.problems.map((x) => Number(x.code.slice(3)) || 0)) + 1;
   const problem: Problem = {
     id: crypto.randomUUID(),
@@ -36,10 +38,11 @@ function addProblem(db: Db, user: User, p: { title: string; body: string; refere
 export async function createProblem(formData: FormData) {
   const user = await requireRole("operator");
   const title = str(formData, "title");
-  if (!title) done("/problems/new", "Give the problem a title.");
+  if (!title) done("/problems/new", "Write a subject line idea.");
   const problem = await updateDb((db) =>
     addProblem(db, user, {
       title,
+      ...context(formData),
       body: str(formData, "body"),
       references: parseReferences(str(formData, "references")),
       notes: str(formData, "notes"),
@@ -53,12 +56,13 @@ export async function updateProblem(formData: FormData) {
   await requireRole("operator");
   const id = str(formData, "id");
   const title = str(formData, "title");
-  if (!title) done(`/problems/${id}`, "Give the problem a title.");
+  if (!title) done(`/problems/${id}`, "Write a subject line idea.");
   await updateDb((db) => {
     const p = db.problems.find((x) => x.id === id);
     if (!p) return;
     Object.assign(p, {
       title,
+      ...context(formData),
       body: str(formData, "body"),
       references: parseReferences(str(formData, "references")),
       notes: str(formData, "notes"),
@@ -73,7 +77,7 @@ export async function deleteProblem(formData: FormData) {
   const id = str(formData, "id");
   await updateDb((db) => {
     db.problems = db.problems.filter((p) => p.id !== id);
-    // Drafts made from it keep their own copy of the text and the PB code.
+    // Drafts made from it keep their own copy of the text and the topic number.
   });
   done("/problems?deleted=1");
 }
@@ -87,17 +91,19 @@ export async function createDraftFromProblem(formData: FormData) {
   const id = str(formData, "id");
   const result = await updateDb((db) => {
     const p = db.problems.find((x) => x.id === id);
-    if (!p) return { error: "That problem no longer exists." };
+    if (!p) return { error: "That topic no longer exists." };
     const taken = new Set(db.issues.map((i) => i.issueDate));
     const issueDate = upcomingWednesdays(26).find((d) => !taken.has(d));
     if (!issueDate) return { error: "Every Wednesday in the next six months already has an issue." };
     const number = db.issues.reduce((max, i) => Math.max(max, i.number), 0) + 1;
 
-    // Starting text: the problem itself plus the manual's fixed lines, ready to edit.
+    // Starting text: the topic's framing plus the manual's fixed lines, ready to edit.
     const bodyHtml =
       `<p>[OPENING LINE: human writes]</p>` +
       `<h2>${escape(p.title)}</h2>` +
-      textToHtml(p.body) +
+      [p.overlooked, p.whyNow].filter(Boolean).map((t) => textToHtml(t!)).join("") +
+      (p.stat ? `<h3>The number</h3>${textToHtml(p.stat)}` : "") +
+      (p.body ? textToHtml(p.body) : "") +
       `<p>This is one of the problems the CBI dashboard was built to solve.</p>` +
       `<p>- The CBI K9 team</p>` +
       `<p>P.S. Not a CBI client yet? Book a 15-minute call: [BOOKING LINK]</p>`;
@@ -112,7 +118,7 @@ export async function createDraftFromProblem(formData: FormData) {
       body: "",
       bodyHtml,
       bodyMargin: "normal",
-      problemOfWeek: `${p.code} · ${p.title}`,
+      problemOfWeek: `${topicLabel(p.code)} · ${p.title}`,
       problemId: p.id,
       problemCode: p.code,
       problemTitle: p.title,
@@ -128,7 +134,7 @@ export async function createDraftFromProblem(formData: FormData) {
       sentAt: null,
       holdReason: null,
       results: { openRate: "", replies: "", callsBooked: "", notes: "" },
-      history: [{ at: now(), by: user.name, role: user.role, action: `Created Pack Leader #${number} from ${p.code} (Problem Bank)` }],
+      history: [{ at: now(), by: user.name, role: user.role, action: `Created Pack Leader #${number} from ${topicLabel(p.code)} (Email Topic Ideas)` }],
       createdAt: now(),
       updatedAt: now(),
     };
@@ -185,6 +191,8 @@ export async function confirmImport(formData: FormData) {
   const titles = formData.getAll("title").map(String);
   const bodies = formData.getAll("body").map(String);
   const refs = formData.getAll("references").map(String);
+  const all = (k: string) => formData.getAll(k).map((v) => String(v).trim());
+  const [overlooked, whyNow, stat, notes] = [all("overlooked"), all("whyNow"), all("stat"), all("notes")];
   const added = await updateDb((db) => {
     const imp = db.imports.find((i) => i.id === id);
     if (!imp) return 0;
@@ -193,9 +201,12 @@ export async function confirmImport(formData: FormData) {
       if (!include.has(String(i)) || !title.trim()) return;
       addProblem(db, user, {
         title: title.trim(),
+        overlooked: overlooked[i] ?? "",
+        whyNow: whyNow[i] ?? "",
+        stat: stat[i] ?? "",
         body: (bodies[i] ?? "").trim(),
         references: parseReferences(refs[i] ?? ""),
-        notes: "",
+        notes: notes[i] ?? "",
         source: `Uploaded: ${imp.fileName}`,
       });
       count++;

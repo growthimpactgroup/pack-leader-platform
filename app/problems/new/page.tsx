@@ -11,13 +11,13 @@ export default async function NewProblemPage({ searchParams }: PageProps<"/probl
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <Link href="/problems" className="text-sm text-slate-500 hover:text-slate-800">
-        ← Problem Bank
+        ← Email Topic Ideas
       </Link>
-      <h1 className="text-2xl font-semibold tracking-tight">Add a problem</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Add a topic idea</h1>
       <ErrorBox message={typeof params.error === "string" ? params.error : undefined} />
       <form action={createProblem} className="card space-y-4">
         <ProblemFields />
-        <button className="btn-primary">Add to the bank</button>
+        <button className="btn-primary">Add topic</button>
       </form>
     </div>
   );

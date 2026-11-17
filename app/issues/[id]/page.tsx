@@ -18,6 +18,7 @@ import { AlertBox, ErrorBox, STAGE_THEME, StageBadge } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
 import { demoMode } from "@/lib/demo";
 import { autoChecks } from "@/lib/packet";
+import { topicLabel } from "@/lib/problems";
 import { deadlines, formatDate, formatPacific, suggestedSendTime, timingAlert, toPacificInput, upcomingWednesdays } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
 import { bodyHtml, marginPx } from "@/lib/richtext";
@@ -118,8 +119,8 @@ function PacketForm({ issue }: { issue: Issue }) {
       </div>
 
       <div>
-        <label className="label" htmlFor="problemOfWeek">Problem of the week (from the Problem Bank)</label>
-        <input id="problemOfWeek" name="problemOfWeek" className="input" defaultValue={issue.problemOfWeek} placeholder="e.g. #5 No-shows" />
+        <label className="label" htmlFor="problemOfWeek">Topic of the week (from Email Topic Ideas)</label>
+        <input id="problemOfWeek" name="problemOfWeek" className="input" defaultValue={issue.problemOfWeek} placeholder="e.g. Topic 7 · The empty slot that cost you twice" />
       </div>
 
       <fieldset>
@@ -260,15 +261,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function FromProblemBank({ issue, problem }: { issue: Issue; problem?: Problem }) {
   return (
     <section className="card space-y-2 text-sm">
-      <h2 className="label">From the Problem Bank</h2>
+      <h2 className="label">From Email Topic Ideas</h2>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded bg-slate-900 px-1.5 py-0.5 font-mono text-xs font-semibold text-white">{issue.problemCode}</span>
+        <span className="rounded bg-slate-900 px-1.5 py-0.5 text-xs font-semibold text-white">{topicLabel(issue.problemCode ?? "")}</span>
         {problem ? (
           <Link href={`/problems/${problem.id}`} className="font-medium hover:underline">
             {problem.title}
           </Link>
         ) : (
-          <span className="text-slate-600">{issue.problemTitle} (deleted from the bank)</span>
+          <span className="text-slate-600">{issue.problemTitle} (topic deleted)</span>
         )}
       </div>
       {problem?.notes && <p className="whitespace-pre-wrap text-slate-600">{problem.notes}</p>}

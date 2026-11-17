@@ -3,15 +3,17 @@ import { ConfirmButton } from "@/app/confirm-button";
 import { createDraftFromProblem, deleteProblem, uploadProblemsPdf } from "@/app/problem-actions";
 import { ErrorBox, Notice, ProblemStatusBadge } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
-import { problemStatus } from "@/lib/problems";
+import { CONTEXT_FIELDS, problemStatus, topicLabel } from "@/lib/problems";
 import { readDb } from "@/lib/store";
 
 const FILTERS = [
   { value: "", label: "All" },
-  { value: "new", label: "Not drafted" },
+  { value: "new", label: "Not used yet" },
   { value: "active", label: "In progress" },
   { value: "sent", label: "Sent" },
 ];
+
+export const metadata = { title: "Email Topic Ideas — The Pack Leader" };
 
 export default async function ProblemBankPage({ searchParams }: PageProps<"/problems">) {
   const [user, db, params] = await Promise.all([currentUser(), readDb(), searchParams]);
@@ -20,10 +22,10 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
   const operator = user.role === "operator";
 
   const all = [...db.problems]
-    .sort((a, b) => b.code.localeCompare(a.code))
+    .sort((a, b) => a.code.localeCompare(b.code))
     .map((p) => ({ p, status: problemStatus(p, db.issues) }));
   const shown = all.filter(({ p, status }) => {
-    if (q && !`${p.code} ${p.title} ${p.body}`.toLowerCase().includes(q.toLowerCase())) return false;
+    if (q && !`${topicLabel(p.code)} ${p.title} ${p.overlooked ?? ""} ${p.whyNow ?? ""} ${p.stat ?? ""} ${p.body}`.toLowerCase().includes(q.toLowerCase())) return false;
     if (filter === "new") return status.stage === null;
     if (filter === "sent") return status.stage === "SENT";
     if (filter === "active") return status.stage !== null && status.stage !== "SENT";
@@ -34,28 +36,29 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Problem Bank</h1>
-          <p className="text-sm text-slate-500">
-            The starting point for every issue. Each problem has its own ID and shows where its drafts are in the pipeline.
+          <h1 className="text-2xl font-semibold tracking-tight">Email Topic Ideas</h1>
+          <p className="max-w-2xl text-sm text-slate-500">
+            Possible subjects for the CBI K9 email list. Each one says what pet-care owners aren’t paying attention to, why they’d care right now, and
+            the number that proves it. Pick one to start a draft.
           </p>
         </div>
         {operator && (
           <Link href="/problems/new" className="btn-primary">
-            Add problem
+            Add a topic
           </Link>
         )}
       </div>
 
       <ErrorBox message={typeof params.error === "string" ? params.error : undefined} />
-      {params.added && <Notice>Added {String(params.added)} problem{params.added === "1" ? "" : "s"} to the bank.</Notice>}
-      {params.deleted && <Notice>Problem deleted. Any drafts made from it keep their text.</Notice>}
+      {params.added && <Notice>Added {String(params.added)} topic{params.added === "1" ? "" : "s"}.</Notice>}
+      {params.deleted && <Notice>Topic deleted. Any drafts made from it keep their text.</Notice>}
 
       {operator && (
         <form action={uploadProblemsPdf} className="card flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="flex-1">
-            <div className="font-medium">Upload a PDF of problems</div>
+            <div className="font-medium">Upload a PDF of topics</div>
             <p className="text-sm text-slate-500">
-              Each numbered problem becomes its own card. You’ll check and fix the cards before anything is added. Up to 4 MB.
+              Each numbered topic becomes its own card. You’ll check and fix the cards before anything is added. Up to 4 MB.
             </p>
           </div>
           <input
@@ -72,7 +75,7 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
       <div className="flex flex-wrap items-center gap-3">
         <form className="flex gap-2" action="/problems">
           {filter && <input type="hidden" name="filter" value={filter} />}
-          <input name="q" defaultValue={q} placeholder="Search problems" className="input w-64" />
+          <input name="q" defaultValue={q} placeholder="Search topics" className="input w-64" />
           <button className="btn-secondary">Search</button>
         </form>
         <nav className="flex flex-wrap gap-1 text-sm">
@@ -96,23 +99,36 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
 
       {shown.length === 0 ? (
         <div className="card py-10 text-center text-sm text-slate-500">
-          {all.length === 0 ? "The bank is empty. Add a problem or upload a PDF to start." : "No problems match."}
+          {all.length === 0 ? "No topics yet. Add one or upload a PDF to start." : "No topics match."}
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {shown.map(({ p, status }) => (
             <article key={p.id} className="card flex flex-col gap-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-xs font-semibold text-slate-500">{p.code}</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{topicLabel(p.code)}</span>
                 <ProblemStatusBadge label={status.label} stage={status.stage} />
               </div>
-              <Link href={`/problems/${p.id}`} className="font-semibold leading-snug hover:underline">
+              <Link href={`/problems/${p.id}`} className="text-lg font-semibold leading-snug hover:underline">
                 {p.title}
               </Link>
-              {p.body && <p className="line-clamp-3 text-sm text-slate-600">{p.body}</p>}
+              {CONTEXT_FIELDS.some((f) => p[f.key]) ? (
+                <dl className="space-y-2 text-sm">
+                  {CONTEXT_FIELDS.map((f) =>
+                    p[f.key] ? (
+                      <div key={f.key}>
+                        <dt className="text-xs font-semibold text-slate-500">{f.short}</dt>
+                        <dd className={`line-clamp-3 ${f.key === "stat" ? "font-medium text-slate-800" : "text-slate-600"}`}>{p[f.key]}</dd>
+                      </div>
+                    ) : null,
+                  )}
+                </dl>
+              ) : (
+                p.body && <p className="line-clamp-3 text-sm text-slate-600">{p.body}</p>
+              )}
               <div className="mt-auto flex flex-wrap gap-x-3 text-xs text-slate-500">
                 <span>
-                  {p.references.length} reference{p.references.length === 1 ? "" : "s"}
+                  {p.references.length} source{p.references.length === 1 ? "" : "s"}
                 </span>
                 {status.issues.length > 0 && <span>Drafts: {status.issues.map((i) => `#${i.number}`).join(", ")}</span>}
                 <span className="truncate">{p.source}</span>
@@ -130,7 +146,7 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
                 {(operator || user.role === "approver") && (
                   <form action={deleteProblem} className="ml-auto">
                     <input type="hidden" name="id" value={p.id} />
-                    <ConfirmButton message={`Delete ${p.code} “${p.title}” from the Problem Bank? This can't be undone.`} className="btn-danger">
+                    <ConfirmButton message={`Delete ${topicLabel(p.code)} “${p.title}”? This can't be undone.`} className="btn-danger">
                       Delete
                     </ConfirmButton>
                   </form>

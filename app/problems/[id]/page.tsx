@@ -4,7 +4,7 @@ import { ConfirmButton } from "@/app/confirm-button";
 import { createDraftFromProblem, deleteProblem, updateProblem } from "@/app/problem-actions";
 import { ErrorBox, Notice, ProblemStatusBadge, StageBadge } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
-import { problemStatus } from "@/lib/problems";
+import { CONTEXT_FIELDS, problemStatus, topicLabel } from "@/lib/problems";
 import { formatDate, formatPacific } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
 import { ProblemFields } from "../problem-fields";
@@ -20,10 +20,10 @@ export default async function ProblemPage({ params, searchParams }: PageProps<"/
     <div className="space-y-5">
       <div>
         <Link href="/problems" className="text-sm text-slate-500 hover:text-slate-800">
-          ← Problem Bank
+          ← Email Topic Ideas
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-sm font-semibold text-white">{problem.code}</span>
+          <span className="rounded bg-slate-900 px-2 py-0.5 text-sm font-semibold text-white">{topicLabel(problem.code)}</span>
           <h1 className="text-2xl font-semibold tracking-tight">{problem.title}</h1>
           <ProblemStatusBadge label={status.label} stage={status.stage} />
         </div>
@@ -45,12 +45,20 @@ export default async function ProblemPage({ params, searchParams }: PageProps<"/
           </form>
         ) : (
           <section className="card space-y-4 text-sm">
+            {CONTEXT_FIELDS.map((f) => (
+              <div key={f.key}>
+                <div className="label">{f.label}</div>
+                <p className="whitespace-pre-wrap">{problem[f.key] || "—"}</p>
+              </div>
+            ))}
+            {problem.body && (
+              <div>
+                <div className="label">Extra detail</div>
+                <p className="whitespace-pre-wrap">{problem.body}</p>
+              </div>
+            )}
             <div>
-              <div className="label">Body</div>
-              <p className="whitespace-pre-wrap">{problem.body || "—"}</p>
-            </div>
-            <div>
-              <div className="label">References and links</div>
+              <div className="label">Source links</div>
               {problem.references.length === 0 ? (
                 "—"
               ) : (
@@ -70,7 +78,7 @@ export default async function ProblemPage({ params, searchParams }: PageProps<"/
               )}
             </div>
             <div>
-              <div className="label">Context and notes</div>
+              <div className="label">Notes for whoever writes it</div>
               <p className="whitespace-pre-wrap">{problem.notes || "—"}</p>
             </div>
           </section>
@@ -84,13 +92,13 @@ export default async function ProblemPage({ params, searchParams }: PageProps<"/
                 <button className="btn-primary w-full">{status.issues.length ? "Create another draft" : "Create draft"}</button>
               </form>
               <p className="text-xs text-slate-500">
-                Starts an issue on the next open Wednesday with this title, body and references, linked to {problem.code}.
+                Starts an issue on the next open Wednesday with this subject line, framing and sources, linked to {topicLabel(problem.code)}.
               </p>
             </section>
           )}
 
           <section className="card">
-            <h2 className="label">Drafts from {problem.code}</h2>
+            <h2 className="label">Drafts from {topicLabel(problem.code)}</h2>
             {status.issues.length === 0 ? (
               <p className="mt-2 text-sm text-slate-500">Not drafted yet.</p>
             ) : (
@@ -117,10 +125,10 @@ export default async function ProblemPage({ params, searchParams }: PageProps<"/
           {(operator || user.role === "approver") && (
             <form action={deleteProblem} className="card">
               <input type="hidden" name="id" value={problem.id} />
-              <ConfirmButton message={`Delete ${problem.code} “${problem.title}” from the Problem Bank? This can't be undone.`} className="btn-danger w-full">
-                Delete problem
+              <ConfirmButton message={`Delete ${topicLabel(problem.code)} “${problem.title}”? This can't be undone.`} className="btn-danger w-full">
+                Delete topic
               </ConfirmButton>
-              <p className="mt-2 text-xs text-slate-500">Drafts already made from it keep their text and the {problem.code} label.</p>
+              <p className="mt-2 text-xs text-slate-500">Drafts already made from it keep their text and the {topicLabel(problem.code)} label.</p>
             </form>
           )}
         </aside>

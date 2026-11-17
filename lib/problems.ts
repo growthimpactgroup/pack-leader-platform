@@ -22,6 +22,19 @@ export function problemStatus(problem: Problem, issues: Issue[]): ProblemStatus 
 
 export const formatCode = (n: number) => `PB-${String(n).padStart(3, "0")}`;
 
+// What people see instead of the stored code: "PB-007" → "Topic 7".
+export const topicLabel = (code: string) => {
+  const n = Number(code.replace(/\D/g, ""));
+  return n ? `Topic ${n}` : code;
+};
+
+// Labels for the context fields, used on forms, cards and in PDFs.
+export const CONTEXT_FIELDS = [
+  { key: "overlooked", label: "What owners aren’t paying attention to", short: "What they miss" },
+  { key: "whyNow", label: "Why they care right now", short: "Why now" },
+  { key: "stat", label: "The number that backs it up", short: "The number" },
+] as const;
+
 // "Label - https://…", "Label: https://…" or a bare URL, one per line.
 export function parseReferences(text: string): Reference[] {
   return text

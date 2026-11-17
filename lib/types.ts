@@ -130,11 +130,19 @@ export type RunLogEntry = {
 
 export type Reference = { label: string; url: string };
 
-export type Problem = {
+// A possible subject for the email list ("Email Topic Ideas" on screen; the
+// manual calls this the Problem Bank). Stored as "problems" for older data.
+export type TopicContext = {
+  overlooked?: string; // what owners aren't paying attention to
+  whyNow?: string; // why they care about it right now
+  stat?: string; // the one sourced number that backs it up, in one sentence
+};
+
+export type Problem = TopicContext & {
   id: string;
-  code: string; // human-readable unique ID, e.g. PB-007
-  title: string;
-  body: string;
+  code: string; // unique ID, e.g. PB-007 (shown as "Topic 7")
+  title: string; // the subject line idea
+  body: string; // extra detail (optional)
   references: Reference[];
   notes: string; // extra context for whoever drafts it
   source: string; // "Added by hand" or the PDF it came from
@@ -149,7 +157,7 @@ export type PendingImport = {
   fileName: string;
   createdAt: string;
   createdBy: string;
-  items: { title: string; body: string; references: Reference[] }[];
+  items: (TopicContext & { title: string; body: string; references: Reference[]; notes?: string })[];
   otherLinks?: string[]; // links in the PDF that weren't next to a problem's text
 };
 
