@@ -1,10 +1,16 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
+import { decide } from "./actions";
+import { TimezonePicker } from "./timezone-picker";
+import { describeIssue } from "@/lib/describe";
+import { bodyHtml, marginPx } from "@/lib/richtext";
+import { TZ_COOKIE, dateTime, viewerTz } from "@/lib/timezone";
 import { currentUser } from "@/lib/auth";
 import { accounts } from "@/lib/accounts";
 import { deadlines, formatDate, formatPacific, nextWednesday, pacificToday, timingAlert } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
-import { STAGES, type Issue, type Role, type User } from "@/lib/types";
-import { AlertBox, STAGE_THEME, StageBadge } from "./ui";
+import { STAGES, type Issue, type Problem, type Role, type User } from "@/lib/types";
+import { AlertBox, ErrorBox, Notice, STAGE_THEME, StageBadge } from "./ui";
 
 // What's waiting on each person, and what they need to do about it.
 function todoFor(role: Role, issues: Issue[], now = Date.now()): { issue: Issue; action: string }[] {
@@ -77,6 +83,8 @@ function statusLine(i: Issue): string {
 
 export default async function PipelinePage({ searchParams }: PageProps<"/">) {
   const [user, db, params] = await Promise.all([currentUser(), readDb(), searchParams]);
+  // Grace gets a page with only what needs her approval.
+  if (user.role === "approver") return <ApproverHome issues={db.issues} problems={db.problems} params={params} />;
   const issues = [...db.issues].sort((a, b) => b.number - a.number);
   const active = STAGES.find((s) => s.toLowerCase() === params.stage) ?? null;
   const shown = active ? issues.filter((i) => i.stage === active) : issues;
@@ -298,5 +306,106 @@ function TodoLists({ user, issues, tab, stage }: { user: User; issues: Issue[]; 
         )}
       </div>
     </section>
+  );
+}
+
+// ---------- Grace's view ----------
+
+async function ApproverHome({ issues, problems, params }: { issues: Issue[]; problems: Problem[]; params: Record<string, string | string[] | undefined> }) {
+  const tz = viewerTz((await cookies()).get(TZ_COOKIE)?.value, "approver");
+  const waiting = issues.filter((i) => i.stage === "READY_FOR_REVIEW").sort((a, b) => a.issueDate.localeCompare(b.issueDate));
+  const both = (d: Date) => (tz.id === "America/Los_Angeles" ? `${dateTime(d, tz.id)} Pacific` : `${dateTime(d, tz.id)} ${tz.label} (${dateTime(d, "America/Los_Angeles")} Pacific)`);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-4xl font-bold tracking-tight">CBI Newsletter and Broadcast Approval Dashboard</h1>
+        <p className="mt-1 max-w-2xl text-base text-slate-700">
+          Read each email, then approve it or ask for changes. Once you approve, Frances schedules it to send at the target time.
+        </p>
+        <div className="mt-3">
+          <TimezonePicker tz={tz} back="/" />
+        </div>
+      </div>
+
+      <ErrorBox message={typeof params.error === "string" ? params.error : undefined} />
+      {params.decided === "approved" && <Notice>Approved. It’s now on Frances’s list to schedule.</Notice>}
+      {params.decided === "changes" && <Notice>Sent back to Frances with your changes.</Notice>}
+
+      <section className="space-y-4">
+        <h2 className={SECTION}>What needs your approval</h2>
+        {waiting.length === 0 ? (
+          <div className="card py-10 text-center text-lg text-slate-600">Nothing needs your approval right now. You’ll get an email when something does.</div>
+        ) : (
+          waiting.map((i) => {
+            const d = deadlines(i.issueDate);
+            const launch = countdown(i.issueDate);
+            const about = describeIssue(i, problems);
+            return (
+              <article key={i.id} className="card space-y-4 border-l-8 border-l-amber-500">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-sm font-bold ${launch.className}`}>{launch.label}</span>
+                  <span className="text-sm text-slate-600">
+                    Target send: <span className="font-semibold text-slate-900">{both(d.sendAt)}</span>
+                  </span>
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-slate-500">Subject line</div>
+                  <div className="text-2xl font-bold leading-snug">{i.subject || "No subject line yet"}</div>
+                  {about && <p className="mt-2 text-lg text-slate-700">{about}</p>}
+                </div>
+                {i.scorecard && (
+                  <p className="text-base text-slate-700">
+                    <span className="font-semibold">Review Agent:</span> {i.scorecard.verdict} ({i.scorecard.valueScore}/10)
+                    {i.scorecard.noteForApprover ? ` · ${i.scorecard.noteForApprover}` : ""}
+                  </p>
+                )}
+
+                <details className="group rounded-lg ring-1 ring-slate-200">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-base font-semibold text-indigo-700 [&::-webkit-details-marker]:hidden">
+                    <span className="inline-block transition group-open:rotate-90">▶</span> Click here to read the whole email
+                  </summary>
+                  <div className="border-t border-slate-200 bg-slate-50 py-5" style={{ paddingLeft: marginPx(i.bodyMargin), paddingRight: marginPx(i.bodyMargin) }}>
+                    {/* Sanitized on save (lib/sanitize.ts); older plain-text bodies are escaped. */}
+                    <div className="email-content" dangerouslySetInnerHTML={{ __html: bodyHtml(i) }} />
+                  </div>
+                </details>
+
+                <form action={decide} className="space-y-3 border-t border-slate-200 pt-4">
+                  <input type="hidden" name="id" value={i.id} />
+                  <input type="hidden" name="returnTo" value="/" />
+                  <label className="flex items-start gap-2 text-base">
+                    <input type="checkbox" name="confirm" value="yes" className="mt-1.5 h-4 w-4" />
+                    I’ve read the whole email.
+                  </label>
+                  <div className="flex flex-wrap gap-3">
+                    <button name="kind" value="APPROVED" className="btn-success px-6 py-3 text-base">
+                      Approve, ready to send
+                    </button>
+                  </div>
+                  <details className="group">
+                    <summary className="cursor-pointer list-none text-base font-semibold text-slate-700 [&::-webkit-details-marker]:hidden">
+                      <span className="inline-block transition group-open:rotate-90">▶</span> Make changes instead
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      <textarea name="notes" rows={3} className="input" placeholder="What should Frances change?" />
+                      <button name="kind" value="CHANGES" className="btn-secondary">
+                        Send back for changes
+                      </button>
+                    </div>
+                  </details>
+                  <p className="text-sm text-slate-500">
+                    Please decide by {both(d.approveBy)}.{" "}
+                    <Link href={`/issues/${i.id}`} className="text-indigo-600 hover:underline">
+                      Open the full approval page
+                    </Link>
+                  </p>
+                </form>
+              </article>
+            );
+          })
+        )}
+      </section>
+    </div>
   );
 }

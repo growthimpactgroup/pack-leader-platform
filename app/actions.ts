@@ -332,7 +332,7 @@ export async function decide(formData: FormData) {
     if (issue.stage !== "READY_FOR_REVIEW") return "Only a packet that is ready for review can be decided.";
     const today = pacificToday();
     if (kind === "APPROVED") {
-      if (str(formData, "confirm") !== "yes") return "Tick the box to confirm you have read the full issue.";
+      if (str(formData, "confirm") !== "yes") return "Tick “I’ve read the whole email” first, then approve.";
       const text = `APPROVED — Pack Leader #${issue.number} — ${today} — ${user.name}`;
       issue.decision = { kind: "APPROVED", text, notes, by: user.name, at: now() };
       log(issue, user, text, "APPROVED", notes);
@@ -354,6 +354,11 @@ export async function decide(formData: FormData) {
       d.kind === "APPROVED" ? "approval notice" : "changes notice",
       await notify(["operator"], snapshot, d.kind === "APPROVED" ? "Approved — schedule the send" : "Changes requested", d.kind === "APPROVED" ? d.text : d.notes),
     );
+  }
+  // Grace can decide straight from her home page; send her back there.
+  if (str(formData, "returnTo") === "/") {
+    revalidatePath("/", "layout");
+    redirect(error ? `/?error=${encodeURIComponent(error)}` : `/?decided=${kind === "APPROVED" ? "approved" : "changes"}`);
   }
   back(id, error ?? undefined);
 }

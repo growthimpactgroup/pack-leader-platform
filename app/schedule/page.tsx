@@ -1,40 +1,19 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
+import { describeIssue } from "@/lib/describe";
+import { bodyHtml, marginPx } from "@/lib/richtext";
+import { TZ_COOKIE, dayTime, viewerTz } from "@/lib/timezone";
+import { TimezonePicker } from "../timezone-picker";
 import { addDays, deadlines, formatDate, formatPacific, pacificToday, timingAlert, upcomingWednesdays, type Alert } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
-import type { Issue, Problem } from "@/lib/types";
 import { STAGE_THEME, StageBadge } from "../ui";
 
-export const metadata = { title: "Send schedule — CBI Newsletter" };
+export const metadata = { title: "Broadcast and email send schedule — CBI Newsletter" };
 
-// Short day + time, e.g. "Tue 3:00 pm".
-function dayTime(date: Date, tz: string) {
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "numeric", minute: "2-digit" }).format(date).replace(" AM", " am").replace(" PM", " pm");
-}
 
 function timeOnly(date: Date, tz: string) {
   return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(date).replace(" AM", " am").replace(" PM", " pm");
-}
-
-// One or two sentences that say what the email is about: the topic's framing if
-// it came from Topic ideas, otherwise the start of the email text.
-function describe(issue: Issue, problems: Problem[]): string {
-  const topic = issue.problemId ? problems.find((p) => p.id === issue.problemId) : undefined;
-  const source =
-    topic?.overlooked ||
-    issue.body
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l && !l.startsWith("[") && !/^(the number|this is one of the problems|- the cbi|p\.s\.)/i.test(l) && l !== topic?.title && !issue.subject.endsWith(l))
-      .join(" ");
-  if (!source) return "";
-  const sentences = source.match(/[^.!?]+[.!?]+/g) ?? [source];
-  let out = "";
-  for (const s of sentences.slice(0, 2)) {
-    if ((out + s).length > 240 && out) break;
-    out += s;
-  }
-  return out.trim().length > 260 ? `${out.trim().slice(0, 257)}…` : out.trim();
 }
 
 function whenLabel(i: number) {
@@ -58,7 +37,9 @@ const ALERT_TEXT: Record<Alert["tone"], string> = {
 };
 
 export default async function SchedulePage() {
-  const [user, db] = await Promise.all([currentUser(), readDb()]);
+  const [user, db, jar] = await Promise.all([currentUser(), readDb(), cookies()]);
+  const tz = viewerTz(jar.get(TZ_COOKIE)?.value, user.role);
+  const pacificOnly = tz.id === "America/Los_Angeles";
   const weeks = upcomingWednesdays(8);
   const lastWeekStart = addDays(pacificToday(), -28);
   const recent = db.issues
@@ -69,11 +50,14 @@ export default async function SchedulePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Send schedule</h1>
+        <h1 className="text-[2rem] font-bold leading-tight tracking-tight">Broadcast and email send schedule</h1>
         <p className="mt-1 max-w-3xl text-base text-slate-700">
-          The Pack Leader goes out automatically every Wednesday. Each week below shows the email planned for that day, what it’s about, and what
-          still has to happen before it can send. The week coming up is highlighted in its status color.
+          When each email and broadcast to the CBI K9 mailing list goes out. The Pack Leader sends automatically every Wednesday once Grace approves
+          it. Each week shows the subject line, what the email is about, and what still has to happen before it can send.
         </p>
+        <div className="mt-3">
+          <TimezonePicker tz={tz} back="/schedule" />
+        </div>
       </div>
 
       {/* How every week runs, with Frances's Philippine time alongside Pacific. */}
@@ -91,7 +75,7 @@ export default async function SchedulePage() {
                 <span className="font-bold">{s.title}</span>
               </div>
               <div className="mt-2 text-base font-semibold">{dayTime(s.at, "America/Los_Angeles")} Pacific</div>
-              <div className="text-sm text-slate-500">{dayTime(s.at, "Asia/Manila")} Philippines</div>
+              {!pacificOnly && <div className="text-sm text-slate-500">{dayTime(s.at, tz.id)} {tz.label}</div>}
               <p className="mt-1 text-sm text-slate-600">{s.who}</p>
             </li>
           ))}
@@ -110,7 +94,7 @@ export default async function SchedulePage() {
           const theme = issue ? STAGE_THEME[issue.stage] : null;
           const current = idx === 0;
           const urgency = alert ? URGENCY[alert.tone] : null;
-          const about = issue ? describe(issue, db.problems) : "";
+          const about = issue ? describeIssue(issue, db.problems) : "";
           const sendAt = issue?.scheduledFor ? new Date(issue.scheduledFor) : d.sendAt;
 
           const box = !issue
@@ -127,7 +111,7 @@ export default async function SchedulePage() {
                   <div className={`text-sm font-bold uppercase tracking-wide ${current ? (theme?.heading ?? "text-rose-700") : "text-slate-500"}`}>{whenLabel(idx)}</div>
                   <div className="text-xl font-bold leading-tight">{formatDate(date).replace(/, \d{4}$/, "")}</div>
                   <div className="mt-1 text-sm font-semibold text-slate-700">{issue?.stage === "SENT" ? "Sent" : "Sends"} {timeOnly(issue?.sentAt ? new Date(issue.sentAt) : sendAt, "America/Los_Angeles")} Pacific</div>
-                  <div className="text-sm text-slate-500">{dayTime(issue?.sentAt ? new Date(issue.sentAt) : sendAt, "Asia/Manila")} Philippines</div>
+                  {!pacificOnly && <div className="text-sm text-slate-500">{dayTime(issue?.sentAt ? new Date(issue.sentAt) : sendAt, tz.id)} {tz.label}</div>}
                 </div>
 
                 {/* What's going out */}
@@ -139,14 +123,28 @@ export default async function SchedulePage() {
                         {urgency && <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${urgency.className}`}>{urgency.label}</span>}
                         <span className="text-sm text-slate-500">Email #{issue.number}</span>
                       </div>
-                      <Link href={`/issues/${issue.id}`} className="block text-lg font-bold leading-snug text-slate-900 hover:underline">
-                        {issue.subject || "No subject line yet"}
-                      </Link>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-500">Subject line</div>
+                        <Link href={`/issues/${issue.id}`} className="block text-lg font-bold leading-snug text-slate-900 hover:underline">
+                          {issue.subject || "No subject line yet"}
+                        </Link>
+                      </div>
                       <p className="text-base text-slate-700">{about || "No description yet. Open the email to write it."}</p>
+                      {issue.body.trim() && (
+                        <details className="group rounded-lg bg-white/70 ring-1 ring-slate-200">
+                          <summary className="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-indigo-700 [&::-webkit-details-marker]:hidden">
+                            <span className="inline-block transition group-open:rotate-90">▶</span> Read the whole email
+                          </summary>
+                          <div className="border-t border-slate-200 py-4" style={{ paddingLeft: marginPx(issue.bodyMargin), paddingRight: marginPx(issue.bodyMargin) }}>
+                            {/* Sanitized on save (lib/sanitize.ts); older plain-text bodies are escaped. */}
+                            <div className="email-content" dangerouslySetInnerHTML={{ __html: bodyHtml(issue) }} />
+                          </div>
+                        </details>
+                      )}
                       {alert && (
-                        <p className={`text-sm font-semibold ${ALERT_TEXT[alert.tone]}`}>
-                          <span className="font-bold">Next step:</span> {alert.text}
-                        </p>
+                        <div className={`border-b-2 pb-2 text-base font-bold ${ALERT_TEXT[alert.tone]} ${alert.tone === "danger" ? "border-rose-300" : alert.tone === "warn" ? "border-amber-300" : alert.tone === "ok" ? "border-emerald-300" : "border-slate-300"}`}>
+                          Next step: <span className="font-semibold">{alert.text}</span>
+                        </div>
                       )}
                       {issue.stage === "HELD" && issue.holdReason && (
                         <p className="text-sm font-semibold text-rose-800">On hold: {issue.holdReason}</p>

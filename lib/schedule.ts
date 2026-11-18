@@ -88,7 +88,7 @@ export function timingAlert(issue: Issue, now = new Date()): Alert | null {
     if (now >= d.submitBy) return { tone: "danger", text: `Packet was due ${formatPacific(d.submitBy)}. Submit as soon as possible.` };
     return { tone: "info", text: `Submit for review by ${formatPacific(d.submitBy)}.` };
   }
-  return { tone: "info", text: `Waiting on approval. Target: ${formatPacific(d.approveBy)}.` };
+  return { tone: "info", text: `Waiting on approval. Target date to send out: ${formatPacific(d.sendAt)}. Grace approves by ${formatPacific(d.approveBy)}.` };
 }
 
 // The earliest send slot the rules allow if approval lands at `approvedAt`.
