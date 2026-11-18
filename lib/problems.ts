@@ -1,31 +1,23 @@
-import type { Issue, Problem, Reference, Stage } from "./types";
+import { STAGE_LABEL, type Issue, type Problem, type Reference, type Stage } from "./types";
 
 // Where a problem stands, based on the issues drafted from it (newest first).
 export type ProblemStatus = { label: string; stage: Stage | null; issues: Issue[] };
 
-const STATUS_LABEL: Record<Stage, string> = {
-  DRAFT: "Drafted",
-  READY_FOR_REVIEW: "In review",
-  CHANGES_REQUESTED: "Being revised",
-  APPROVED: "Approved",
-  SENT: "Sent",
-  HELD: "Held",
-};
 
 export function problemStatus(problem: Problem, issues: Issue[]): ProblemStatus {
   const linked = issues.filter((i) => i.problemId === problem.id).sort((a, b) => b.number - a.number);
   const latest = linked[0];
-  if (!latest) return { label: "Not drafted", stage: null, issues: [] };
-  const label = latest.stage === "APPROVED" && latest.scheduledFor ? "Scheduled" : STATUS_LABEL[latest.stage];
+  if (!latest) return { label: "Not used yet", stage: null, issues: [] };
+  const label = latest.stage === "APPROVED" && latest.scheduledFor ? "Approved and scheduled" : STAGE_LABEL[latest.stage];
   return { label, stage: latest.stage, issues: linked };
 }
 
 export const formatCode = (n: number) => `PB-${String(n).padStart(3, "0")}`;
 
-// What people see instead of the stored code: "PB-007" → "Topic 7".
+// What people see instead of the stored code: "PB-007" → "Idea 7".
 export const topicLabel = (code: string) => {
   const n = Number(code.replace(/\D/g, ""));
-  return n ? `Topic ${n}` : code;
+  return n ? `Idea ${n}` : code;
 };
 
 // Labels for the context fields, used on forms, cards and in PDFs.

@@ -20,7 +20,7 @@ export default async function ProblemPage({ params, searchParams }: PageProps<"/
     <div className="space-y-5">
       <div>
         <Link href="/problems" className="text-sm text-slate-500 hover:text-slate-800">
-          ← Email Topic Ideas
+          ← Subject line and content ideas
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <span className="rounded bg-slate-900 px-2 py-0.5 text-sm font-semibold text-white">{topicLabel(problem.code)}</span>

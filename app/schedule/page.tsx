@@ -164,7 +164,7 @@ export default async function SchedulePage() {
                         {user.role === "operator" && (
                           <>
                             <Link href="/problems" className="font-semibold text-indigo-600 hover:underline">
-                              Pick a topic idea
+                              Pick a subject line idea
                             </Link>{" "}
                             or{" "}
                             <Link href="/issues/new" className="font-semibold text-indigo-600 hover:underline">

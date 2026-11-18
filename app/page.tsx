@@ -129,7 +129,7 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
               <>
                 {" "}
                 <Link href="/problems" className="font-semibold text-indigo-600 hover:underline">
-                  Pick a topic idea
+                  Pick a subject line idea
                 </Link>{" "}
                 to start it.
               </>

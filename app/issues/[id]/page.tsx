@@ -119,7 +119,7 @@ function PacketForm({ issue }: { issue: Issue }) {
       </div>
 
       <div>
-        <label className="label" htmlFor="problemOfWeek">Topic of the week (from Email Topic Ideas)</label>
+        <label className="label" htmlFor="problemOfWeek">Content idea (from Subject line and content ideas)</label>
         <input id="problemOfWeek" name="problemOfWeek" className="input" defaultValue={issue.problemOfWeek} placeholder="e.g. Topic 7 · The empty slot that cost you twice" />
       </div>
 
@@ -261,7 +261,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function FromProblemBank({ issue, problem }: { issue: Issue; problem?: Problem }) {
   return (
     <section className="card space-y-2 text-sm">
-      <h2 className="label">From Email Topic Ideas</h2>
+      <h2 className="label">From Subject line and content ideas</h2>
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded bg-slate-900 px-1.5 py-0.5 text-xs font-semibold text-white">{topicLabel(issue.problemCode ?? "")}</span>
         {problem ? (

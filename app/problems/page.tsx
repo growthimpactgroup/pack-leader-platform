@@ -1,19 +1,29 @@
 import Link from "next/link";
 import { ConfirmButton } from "@/app/confirm-button";
 import { createDraftFromProblem, deleteProblem, uploadProblemsPdf } from "@/app/problem-actions";
-import { ErrorBox, Notice, ProblemStatusBadge } from "@/app/ui";
+import { ErrorBox, Notice, ProblemStatusBadge, STAGE_THEME } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
-import { CONTEXT_FIELDS, problemStatus, topicLabel } from "@/lib/problems";
+import { problemStatus, topicLabel } from "@/lib/problems";
+import { STAGES, type Stage } from "@/lib/types";
 import { readDb } from "@/lib/store";
 
-const FILTERS = [
-  { value: "", label: "All" },
-  { value: "new", label: "Not used yet" },
-  { value: "active", label: "In progress" },
-  { value: "sent", label: "Sent" },
-];
+export const metadata = { title: "Subject line and content ideas — CBI Newsletter" };
 
-export const metadata = { title: "Email Topic Ideas — The Pack Leader" };
+const TAB_LABEL: Record<Stage, string> = {
+  DRAFT: "Drafts being written",
+  READY_FOR_REVIEW: "Waiting for review",
+  CHANGES_REQUESTED: "Needs changes",
+  APPROVED: "Approved",
+  SENT: "Sent",
+  HELD: "On hold",
+};
+
+// Same groups and words as the pipeline on the home page, plus ideas not used yet.
+const FILTERS: { value: string; label: string; dot?: string }[] = [
+  { value: "new", label: "Not used yet" },
+  ...STAGES.map((st) => ({ value: st.toLowerCase(), label: TAB_LABEL[st], dot: STAGE_THEME[st].dot })),
+  { value: "", label: "All ideas" },
+];
 
 export default async function ProblemBankPage({ searchParams }: PageProps<"/problems">) {
   const [user, db, params] = await Promise.all([currentUser(), readDb(), searchParams]);
@@ -27,8 +37,7 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
   const shown = all.filter(({ p, status }) => {
     if (q && !`${topicLabel(p.code)} ${p.title} ${p.overlooked ?? ""} ${p.whyNow ?? ""} ${p.stat ?? ""} ${p.body}`.toLowerCase().includes(q.toLowerCase())) return false;
     if (filter === "new") return status.stage === null;
-    if (filter === "sent") return status.stage === "SENT";
-    if (filter === "active") return status.stage !== null && status.stage !== "SENT";
+    if (filter) return status.stage?.toLowerCase() === filter;
     return true;
   });
 
@@ -36,29 +45,29 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Email Topic Ideas</h1>
-          <p className="max-w-2xl text-sm text-slate-500">
-            Possible subjects for the CBI K9 email list. Each one says what pet-care owners aren’t paying attention to, why they’d care right now, and
-            the number that proves it. Pick one to start a draft.
+          <h1 className="text-[2rem] font-bold leading-tight tracking-tight">Email and broadcast subject lines and content ideas</h1>
+          <p className="mt-1 max-w-3xl text-base text-slate-700">
+            Ideas for upcoming emails to the CBI K9 mailing list. Each one is a subject line and a short preview of what the email would say. Click a
+            subject line to see the full idea, then choose <span className="font-semibold">Create draft</span> to start writing it.
           </p>
         </div>
         {operator && (
           <Link href="/problems/new" className="btn-primary">
-            Add a topic
+            + Add an idea
           </Link>
         )}
       </div>
 
       <ErrorBox message={typeof params.error === "string" ? params.error : undefined} />
-      {params.added && <Notice>Added {String(params.added)} topic{params.added === "1" ? "" : "s"}.</Notice>}
-      {params.deleted && <Notice>Topic deleted. Any drafts made from it keep their text.</Notice>}
+      {params.added && <Notice>Added {String(params.added)} idea{params.added === "1" ? "" : "s"}.</Notice>}
+      {params.deleted && <Notice>Idea deleted. Any drafts made from it keep their text.</Notice>}
 
       {operator && (
         <form action={uploadProblemsPdf} className="card flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="flex-1">
-            <div className="font-medium">Upload a PDF of topics</div>
+            <div className="font-semibold">Upload a PDF of ideas</div>
             <p className="text-sm text-slate-500">
-              Each numbered topic becomes its own card. You’ll check and fix the cards before anything is added. Up to 4 MB.
+              Each numbered idea becomes its own entry. You’ll check and fix the cards before anything is added. Up to 4 MB.
             </p>
           </div>
           <input
@@ -75,7 +84,7 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
       <div className="flex flex-wrap items-center gap-3">
         <form className="flex gap-2" action="/problems">
           {filter && <input type="hidden" name="filter" value={filter} />}
-          <input name="q" defaultValue={q} placeholder="Search topics" className="input w-64" />
+          <input name="q" defaultValue={q} placeholder="Search subject lines and ideas" className="input w-64" />
           <button className="btn-secondary">Search</button>
         </form>
         <nav className="flex flex-wrap gap-1 text-sm">
@@ -87,7 +96,10 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
                 href={href}
                 className={`rounded-full px-3 py-1 ${filter === f.value ? "bg-slate-900 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"}`}
               >
-                {f.label}
+                <span className="inline-flex items-center gap-1.5">
+                  {f.dot && <span className={`h-2 w-2 rounded-full ${f.dot}`} />}
+                  {f.label}
+                </span>
               </Link>
             );
           })}
@@ -99,62 +111,96 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
 
       {shown.length === 0 ? (
         <div className="card py-10 text-center text-sm text-slate-500">
-          {all.length === 0 ? "No topics yet. Add one or upload a PDF to start." : "No topics match."}
+          {all.length === 0 ? "No ideas yet. Add one or upload a PDF to start." : "No ideas match."}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {shown.map(({ p, status }) => (
-            <article key={p.id} className="card flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{topicLabel(p.code)}</span>
-                <ProblemStatusBadge label={status.label} stage={status.stage} />
-              </div>
-              <Link href={`/problems/${p.id}`} className="text-lg font-semibold leading-snug hover:underline">
-                {p.title}
-              </Link>
-              {CONTEXT_FIELDS.some((f) => p[f.key]) ? (
-                <dl className="space-y-2 text-sm">
-                  {CONTEXT_FIELDS.map((f) =>
-                    p[f.key] ? (
-                      <div key={f.key}>
-                        <dt className="text-xs font-semibold text-slate-500">{f.short}</dt>
-                        <dd className={`line-clamp-3 ${f.key === "stat" ? "font-medium text-slate-800" : "text-slate-600"}`}>{p[f.key]}</dd>
+        <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          {shown.map(({ p, status }) => {
+            const preview = p.overlooked || p.body || p.stat || "";
+            return (
+              <li key={p.id} className={`border-l-4 ${status.stage ? STAGE_THEME[status.stage].border : "border-l-transparent"}`}>
+                <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+                  <details className="group min-w-0 flex-1">
+                    <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ProblemStatusBadge label={status.label} stage={status.stage} />
+                        <span className="text-sm text-slate-500">{topicLabel(p.code)}</span>
                       </div>
-                    ) : null,
-                  )}
-                </dl>
-              ) : (
-                p.body && <p className="line-clamp-3 text-sm text-slate-600">{p.body}</p>
-              )}
-              <div className="mt-auto flex flex-wrap gap-x-3 text-xs text-slate-500">
-                <span>
-                  {p.references.length} source{p.references.length === 1 ? "" : "s"}
-                </span>
-                {status.issues.length > 0 && <span>Drafts: {status.issues.map((i) => `#${i.number}`).join(", ")}</span>}
-                <span className="truncate">{p.source}</span>
-              </div>
-              <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-                {operator && (
-                  <form action={createDraftFromProblem}>
-                    <input type="hidden" name="id" value={p.id} />
-                    <button className="btn-primary">{status.issues.length ? "Create another draft" : "Create draft"}</button>
-                  </form>
-                )}
-                <Link href={`/problems/${p.id}`} className="btn-secondary">
-                  Open
-                </Link>
-                {(operator || user.role === "approver") && (
-                  <form action={deleteProblem} className="ml-auto">
-                    <input type="hidden" name="id" value={p.id} />
-                    <ConfirmButton message={`Delete ${topicLabel(p.code)} “${p.title}”? This can't be undone.`} className="btn-danger">
-                      Delete
-                    </ConfirmButton>
-                  </form>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
+                      <div className="mt-1.5 flex items-start gap-2">
+                        <span aria-hidden className="mt-1 text-slate-400 transition group-open:rotate-90">▶</span>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-slate-500">Subject line</div>
+                          <div className="text-lg font-bold leading-snug text-slate-900 group-hover:underline">{p.title}</div>
+                          {preview && <p className="mt-1 line-clamp-2 text-base text-slate-600 group-open:line-clamp-none">{preview}</p>}
+                        </div>
+                      </div>
+                    </summary>
+                    <div className="mt-4 space-y-3 pl-6 text-base">
+                      {p.whyNow && (
+                        <div>
+                          <div className="font-semibold text-slate-800">Why they care right now</div>
+                          <p className="text-slate-700">{p.whyNow}</p>
+                        </div>
+                      )}
+                      {p.stat && (
+                        <div>
+                          <div className="font-semibold text-slate-800">The number</div>
+                          <p className="font-medium text-slate-900">{p.stat}</p>
+                        </div>
+                      )}
+                      {p.references.length > 0 && (
+                        <div>
+                          <div className="font-semibold text-slate-800">Source</div>
+                          <ul className="space-y-0.5">
+                            {p.references.map((r, k) => (
+                              <li key={k}>
+                                {r.url ? (
+                                  <a href={r.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">
+                                    {r.label}
+                                  </a>
+                                ) : (
+                                  r.label
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {p.notes && (
+                        <div>
+                          <div className="font-semibold text-slate-800">Notes for whoever writes it</div>
+                          <p className="text-slate-600">{p.notes}</p>
+                        </div>
+                      )}
+                      {status.issues.length > 0 && (
+                        <p className="text-sm text-slate-500">Used in: {status.issues.map((i) => `email #${i.number}`).join(", ")}</p>
+                      )}
+                      {(operator || user.role === "approver") && (
+                        <form action={deleteProblem}>
+                          <input type="hidden" name="id" value={p.id} />
+                          <ConfirmButton message={`Delete “${p.title}”? This can't be undone.`} className="btn-danger">
+                            Delete this idea
+                          </ConfirmButton>
+                        </form>
+                      )}
+                    </div>
+                  </details>
+                  <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-stretch">
+                    {operator && (
+                      <form action={createDraftFromProblem}>
+                        <input type="hidden" name="id" value={p.id} />
+                        <button className="btn-primary w-full">{status.issues.length ? "Create another draft" : "Create draft"}</button>
+                      </form>
+                    )}
+                    <Link href={`/problems/${p.id}`} className="btn-secondary">
+                      {operator ? "Open and edit" : "Open"}
+                    </Link>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );

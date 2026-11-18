@@ -134,7 +134,7 @@ export async function createDraftFromProblem(formData: FormData) {
       sentAt: null,
       holdReason: null,
       results: { openRate: "", replies: "", callsBooked: "", notes: "" },
-      history: [{ at: now(), by: user.name, role: user.role, action: `Created Pack Leader #${number} from ${topicLabel(p.code)} (Email Topic Ideas)` }],
+      history: [{ at: now(), by: user.name, role: user.role, action: `Created Pack Leader #${number} from ${topicLabel(p.code)} (Subject line and content ideas)` }],
       createdAt: now(),
       updatedAt: now(),
     };
