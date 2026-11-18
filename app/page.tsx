@@ -3,7 +3,7 @@ import { currentUser } from "@/lib/auth";
 import { accounts } from "@/lib/accounts";
 import { deadlines, formatDate, formatPacific, nextWednesday, pacificToday, timingAlert } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
-import { STAGES, STAGE_LABEL, type Issue, type Role, type User } from "@/lib/types";
+import { STAGES, type Issue, type Role, type User } from "@/lib/types";
 import { AlertBox, STAGE_THEME, StageBadge } from "./ui";
 
 // What's waiting on each person, and what they need to do about it.
@@ -31,6 +31,16 @@ function todoFor(role: Role, issues: Issue[], now = Date.now()): { issue: Issue;
 
 export const metadata = { title: "CBI Newsletter System" };
 
+// Group names for the pipeline tabs, left to right in workflow order.
+const TAB_LABEL: Record<(typeof STAGES)[number], string> = {
+  DRAFT: "Drafts being written",
+  READY_FOR_REVIEW: "Waiting for review",
+  CHANGES_REQUESTED: "Needs changes",
+  APPROVED: "Approved",
+  SENT: "Sent",
+  HELD: "On hold",
+};
+
 // Section headings: twice the body text size.
 const SECTION = "text-[2rem] leading-tight font-bold tracking-tight";
 
@@ -53,7 +63,7 @@ function statusLine(i: Issue): string {
     case "DRAFT":
       return "Still being written, not ready for approval yet";
     case "READY_FOR_REVIEW":
-      return i.scorecard ? "Ready for approval: reviewed, waiting for Grace" : "Ready for approval: waiting for the review team";
+      return i.scorecard ? "Waiting for review: the Review Agent is done, waiting for Grace" : "Waiting for review by the Review Agent and Grace";
     case "CHANGES_REQUESTED":
       return "Sent back for changes";
     case "APPROVED":
@@ -132,30 +142,30 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
 
       <section className="card p-0">
         <div className="px-5 pt-5">
-          <h2 className={SECTION}>Newsletters and broadcasts in the pipeline</h2>
+          <h2 className={SECTION}>Emails and broadcasts to be approved</h2>
           <p className="mt-1 text-base text-slate-600">
-            Every email from first draft to sent. Pick a status to see only the emails at that step.
+            Every newsletter, grouped by where it is: from draft, to review, to approved and sent. Pick a group to see only those emails.
           </p>
         </div>
         {/* Tabs are links (?stage=…), so a tab can be bookmarked or shared. */}
         <nav aria-label="Issues by stage" className="flex gap-1 overflow-x-auto border-b border-slate-200 px-3 pt-3">
-          <Tab href="/" active={!active} label="All" count={issues.length} activeClass="border-indigo-600 bg-indigo-50 text-indigo-800" />
           {STAGES.map((stage) => (
             <Tab
               key={stage}
               href={`/?stage=${stage.toLowerCase()}`}
               active={active === stage}
-              label={STAGE_LABEL[stage]}
+              label={TAB_LABEL[stage]}
               count={issues.filter((i) => i.stage === stage).length}
               dot={STAGE_THEME[stage].dot}
               activeClass={STAGE_THEME[stage].tab}
             />
           ))}
+          <Tab href="/" active={!active} label="All emails" count={issues.length} activeClass="border-indigo-600 bg-indigo-50 text-indigo-800" />
         </nav>
 
         <div className="p-4">
           {shown.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">{active ? `No emails are “${STAGE_LABEL[active].toLowerCase()}” right now.` : "No emails yet."}</p>
+            <p className="py-8 text-center text-sm text-slate-500">{active ? `Nothing in “${TAB_LABEL[active]}” right now.` : "No emails yet."}</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {shown.map((i) => (

@@ -12,8 +12,8 @@ export const STAGES = [
 export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABEL: Record<Stage, string> = {
-  DRAFT: "Not ready for approval",
-  READY_FOR_REVIEW: "Ready for approval",
+  DRAFT: "Draft being written",
+  READY_FOR_REVIEW: "Waiting for review",
   CHANGES_REQUESTED: "Needs changes",
   APPROVED: "Approved",
   SENT: "Sent",
