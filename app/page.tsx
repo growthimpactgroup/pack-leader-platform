@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { accounts } from "@/lib/accounts";
-import { deadlines, formatDate, formatPacific, nextWednesday, timingAlert } from "@/lib/schedule";
+import { deadlines, formatDate, formatPacific, nextWednesday, pacificToday, timingAlert } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
 import { STAGES, STAGE_LABEL, type Issue, type Role, type User } from "@/lib/types";
 import { AlertBox, STAGE_THEME, StageBadge } from "./ui";
@@ -16,29 +16,61 @@ function todoFor(role: Role, issues: Issue[], now = Date.now()): { issue: Issue;
       if (i.stage === "APPROVED" && new Date(i.scheduledFor!).getTime() < now) return [{ issue: i, action: "Its send time has passed. Mark it as sent." }];
       return [];
     }
+    // The review team: the Review Agent scores it, then Grace approves it.
     if (i.stage !== "READY_FOR_REVIEW") return [];
-    if (role === "reviewer") return i.scorecard ? [] : [{ issue: i, action: "Post the review scorecard." }];
-    return [{ issue: i, action: "Read it, then approve it or ask for changes." }];
+    return [
+      {
+        issue: i,
+        action: i.scorecard
+          ? "Grace: read it, then approve it or ask for changes."
+          : "Review Agent: post the scorecard. Grace: read it, then approve it or ask for changes.",
+      },
+    ];
   });
 }
 
-export const metadata = { title: "CBI Newsletter" };
+export const metadata = { title: "CBI Newsletter System" };
+
+// Section headings: twice the body text size.
+const SECTION = "text-[2rem] leading-tight font-bold tracking-tight";
+
+// Where an email stands, in plain words.
+function statusLine(i: Issue): string {
+  switch (i.stage) {
+    case "DRAFT":
+      return "Being written, not sent for approval yet";
+    case "READY_FOR_REVIEW":
+      return i.scorecard ? "Reviewed, waiting for Grace’s approval" : "Waiting for review and approval";
+    case "CHANGES_REQUESTED":
+      return "Sent back for changes";
+    case "APPROVED":
+      return i.scheduledFor ? `Approved, scheduled for ${formatPacific(new Date(i.scheduledFor))}` : "Approved, needs to be scheduled";
+    case "SENT":
+      return "Sent";
+    case "HELD":
+      return "On hold, won’t send";
+  }
+}
 
 export default async function PipelinePage({ searchParams }: PageProps<"/">) {
   const [user, db, params] = await Promise.all([currentUser(), readDb(), searchParams]);
   const issues = [...db.issues].sort((a, b) => b.number - a.number);
   const active = STAGES.find((s) => s.toLowerCase() === params.stage) ?? null;
   const shown = active ? issues.filter((i) => i.stage === active) : issues;
-  const thisWeekDate = nextWednesday();
-  const thisWeek = issues.find((i) => i.issueDate === thisWeekDate);
+  // The soonest email that hasn't gone out yet.
+  const today = pacificToday();
+  const upcoming = [...issues]
+    .filter((i) => i.issueDate >= today && i.stage !== "SENT" && i.stage !== "HELD")
+    .sort((a, b) => a.issueDate.localeCompare(b.issueDate))[0];
+  const nextDate = nextWednesday();
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">CBI Newsletter</h1>
-          <p className="text-sm text-slate-600">
-            The Pack Leader, our weekly Wednesday email. Write it, get Grace’s approval, then schedule it.
+          <h1 className="text-4xl font-bold tracking-tight">CBI Newsletter System</h1>
+          <p className="mt-1 max-w-2xl text-base text-slate-700">
+            Where The Pack Leader, CBI K9’s weekly Wednesday email, gets written, reviewed, approved by Grace and scheduled to send.
           </p>
         </div>
         {user.role === "operator" && (
@@ -48,28 +80,35 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
         )}
       </div>
 
-      <section className={`card ${thisWeek ? `border-l-4 ${STAGE_THEME[thisWeek.stage].border}` : ""}`}>
-        <h2 className="text-lg font-semibold">This Wednesday’s email <span className="font-normal text-slate-500">· {formatDate(thisWeekDate)}</span></h2>
-        {thisWeek ? (
-          <div className="mt-2 space-y-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <Link href={`/issues/${thisWeek.id}`} className="text-lg font-medium hover:underline">
-                #{thisWeek.number} · {thisWeek.subject || "No subject yet"}
+      <section className={`card ${upcoming ? `border-l-8 ${STAGE_THEME[upcoming.stage].border}` : ""}`}>
+        <h2 className={SECTION}>Upcoming</h2>
+        {upcoming ? (
+          <div className="mt-3 space-y-3">
+            <p className="text-base font-semibold text-slate-700">
+              {upcoming.stage === "APPROVED" ? "Next email to go out" : "Next email to be approved"} · goes out {formatDate(upcoming.issueDate)}
+            </p>
+            <div>
+              <div className="text-sm font-semibold text-slate-500">Subject line</div>
+              <Link href={`/issues/${upcoming.id}`} className="text-2xl font-bold leading-snug hover:underline">
+                {upcoming.subject || "No subject line yet"}
               </Link>
-              <StageBadge stage={thisWeek.stage} />
             </div>
-            {timingAlert(thisWeek) && <AlertBox alert={timingAlert(thisWeek)!} />}
+            <div className="flex flex-wrap items-center gap-3">
+              <StageBadge stage={upcoming.stage} />
+              <span className="text-base font-semibold text-slate-800">{statusLine(upcoming)}</span>
+            </div>
+            {timingAlert(upcoming) && <AlertBox alert={timingAlert(upcoming)!} />}
           </div>
         ) : (
-          <p className="mt-2 text-sm text-slate-600">
-            Nothing written for this Wednesday yet.
+          <p className="mt-2 text-base text-slate-600">
+            Nothing is planned yet. The next send is Wednesday, {formatDate(nextDate)}.
             {user.role === "operator" && (
               <>
                 {" "}
-                <Link href="/issues/new" className="font-medium text-indigo-600 hover:underline">
-                  Start writing it
-                </Link>
-                .
+                <Link href="/problems" className="font-semibold text-indigo-600 hover:underline">
+                  Pick a topic idea
+                </Link>{" "}
+                to start it.
               </>
             )}
           </p>
@@ -79,10 +118,15 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
       <TodoLists user={user} issues={issues} tab={typeof params.todo === "string" ? params.todo : undefined} stage={typeof params.stage === "string" ? params.stage : undefined} />
 
       <section className="card p-0">
-        <h2 className="px-5 pt-4 text-lg font-semibold">All emails</h2>
+        <div className="px-5 pt-5">
+          <h2 className={SECTION}>Newsletters and broadcasts in the pipeline</h2>
+          <p className="mt-1 text-base text-slate-600">
+            Every email from first draft to sent. Pick a status to see only the emails at that step.
+          </p>
+        </div>
         {/* Tabs are links (?stage=…), so a tab can be bookmarked or shared. */}
         <nav aria-label="Issues by stage" className="flex gap-1 overflow-x-auto border-b border-slate-200 px-3 pt-3">
-          <Tab href="/" active={!active} label="Everything" count={issues.length} activeClass="border-indigo-600 bg-indigo-50 text-indigo-800" />
+          <Tab href="/" active={!active} label="All" count={issues.length} activeClass="border-indigo-600 bg-indigo-50 text-indigo-800" />
           {STAGES.map((stage) => (
             <Tab
               key={stage}
@@ -134,12 +178,11 @@ function IssueCard({ issue, showStage }: { issue: Issue; showStage: boolean }) {
       href={`/issues/${issue.id}`}
       className={`block rounded-lg border border-l-4 border-slate-200 bg-white p-4 text-sm shadow-sm transition hover:shadow-md ${STAGE_THEME[issue.stage].border}`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold">Email #{issue.number}</span>
-        {showStage && <StageBadge stage={issue.stage} />}
-      </div>
-      <div className="mt-1.5 line-clamp-2 text-slate-700">{issue.subject || "No subject yet"}</div>
-      <div className="mt-2 text-xs text-slate-500">Goes out {formatDate(issue.issueDate)}</div>
+      {showStage && <StageBadge stage={issue.stage} />}
+      <div className="mt-2 text-xs font-semibold text-slate-500">Subject line</div>
+      <div className="line-clamp-2 text-base font-bold text-slate-900">{issue.subject || "No subject line yet"}</div>
+      <div className="mt-2 text-sm text-slate-600">{statusLine(issue)}</div>
+      <div className="mt-1 text-xs text-slate-500">Goes out {formatDate(issue.issueDate)} · email #{issue.number}</div>
     </Link>
   );
 }
@@ -148,21 +191,23 @@ function IssueCard({ issue, showStage }: { issue: Issue; showStage: boolean }) {
 // waiting on and follow up. Tabs are links (?todo=…) so they work without scripts.
 function TodoLists({ user, issues, tab, stage }: { user: User; issues: Issue[]; tab?: string; stage?: string }) {
   const name = (role: Role, fallback: string) => accounts().find((a) => a.role === role)?.name || fallback;
-  const people: { role: Role; label: string }[] = [
-    { role: "operator", label: name("operator", "Frances") },
-    { role: "approver", label: name("approver", "Grace") },
+  // Two lists: the Operator's, and the review team's (Review Agent + Grace).
+  const people: { role: Role; label: string; tabLabel: string }[] = [
+    { role: "operator", label: name("operator", "Frances"), tabLabel: `${name("operator", "Frances")}’s action items` },
+    { role: "approver", label: "the review team", tabLabel: `Review team’s action items (${name("approver", "Grace")} and Review Agent)` },
   ];
-  if (user.role === "reviewer") people.push({ role: "reviewer", label: "Reviewer" });
-  const mine = people.find((p) => p.role === user.role)!;
+  const mine = user.role === "operator" ? people[0] : people[1];
   const current = people.find((p) => p.role === tab) ?? mine;
   const items = todoFor(current.role, issues);
-  const isMine = current.role === user.role;
+  const isMine = current === mine;
 
   return (
     <section className="card p-0">
       <div className="px-5 pt-4">
-        <h2 className="text-lg font-bold">To-do lists</h2>
-        <p className="text-sm text-slate-600">What each person needs to do next. Check the other tab to see what to follow up on.</p>
+        <h2 className={SECTION}>Action items</h2>
+        <p className="mt-1 text-base text-slate-600">
+          What has to happen next for each email, and who has to do it. Use the review team’s tab to see what you’re waiting on and what to follow up on.
+        </p>
       </div>
       <nav aria-label="To-do lists" className="mt-3 flex gap-1 border-b border-slate-200 px-3">
         {people.map((p) => {
@@ -170,6 +215,7 @@ function TodoLists({ user, issues, tab, stage }: { user: User; issues: Issue[]; 
           const count = todoFor(p.role, issues).length;
           const q = new URLSearchParams({ ...(p.role === mine.role ? {} : { todo: p.role }), ...(stage ? { stage } : {}) }).toString();
           const href = q ? `/?${q}` : "/";
+          const label = p === mine ? `${p.tabLabel} · you` : p.tabLabel;
           return (
             <Link
               key={p.role}
@@ -179,7 +225,7 @@ function TodoLists({ user, issues, tab, stage }: { user: User; issues: Issue[]; 
                 active ? "border-indigo-600 bg-indigo-50 text-indigo-900" : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
-              {p.role === user.role ? `My to-do (${p.label})` : `${p.label}’s to-do`}
+              {label}
               <span className={`rounded-full px-2 text-xs ${count ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"}`}>{count}</span>
             </Link>
           );
@@ -202,10 +248,11 @@ function TodoLists({ user, issues, tab, stage }: { user: User; issues: Issue[]; 
                   <div className="flex flex-wrap items-center gap-2">
                     <StageBadge stage={i.stage} />
                     {overdue && <span className="rounded-full bg-rose-600 px-2.5 py-0.5 text-xs font-bold text-white">Overdue</span>}
-                    <span className="text-sm text-slate-500">Email #{i.number} · goes out {formatDate(i.issueDate)}</span>
+                    <span className="text-sm text-slate-500">Goes out {formatDate(i.issueDate)}</span>
                   </div>
-                  <Link href={`/issues/${i.id}`} className="mt-1.5 block text-base font-bold hover:underline">
-                    {i.subject || "No subject yet"}
+                  <div className="mt-2 text-xs font-semibold text-slate-500">Subject line</div>
+                  <Link href={`/issues/${i.id}`} className="block text-lg font-bold leading-snug hover:underline">
+                    {i.subject || "No subject line yet"}
                   </Link>
                   <p className={`mt-1 text-sm font-semibold ${overdue ? "text-rose-800" : "text-slate-800"}`}>{action}</p>
                   <p className="mt-0.5 text-sm text-slate-500">
