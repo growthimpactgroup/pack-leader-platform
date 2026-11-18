@@ -34,13 +34,26 @@ export const metadata = { title: "CBI Newsletter System" };
 // Section headings: twice the body text size.
 const SECTION = "text-[2rem] leading-tight font-bold tracking-tight";
 
+// Days until the email launches (its Wednesday send), colored by how close it is.
+function countdown(issueDate: string): { label: string; className: string } {
+  const [y, m, d] = issueDate.split("-").map(Number);
+  const [ty, tm, td] = pacificToday().split("-").map(Number);
+  const days = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86_400_000);
+  if (days < 0) return { label: `Launch date passed ${-days} day${days === -1 ? "" : "s"} ago`, className: "bg-rose-700 text-white" };
+  if (days === 0) return { label: "Launches today", className: "bg-rose-600 text-white" };
+  if (days === 1) return { label: "1 day to launch", className: "bg-rose-600 text-white" };
+  if (days <= 3) return { label: `${days} days to launch`, className: "bg-amber-500 text-white" };
+  if (days <= 7) return { label: `${days} days to launch`, className: "bg-amber-100 text-amber-900 ring-1 ring-amber-300" };
+  return { label: `${days} days to launch`, className: "bg-slate-100 text-slate-700 ring-1 ring-slate-300" };
+}
+
 // Where an email stands, in plain words.
 function statusLine(i: Issue): string {
   switch (i.stage) {
     case "DRAFT":
-      return "Being written, not sent for approval yet";
+      return "Still being written, not ready for approval yet";
     case "READY_FOR_REVIEW":
-      return i.scorecard ? "Reviewed, waiting for Grace’s approval" : "Waiting for review and approval";
+      return i.scorecard ? "Ready for approval: reviewed, waiting for Grace" : "Ready for approval: waiting for the review team";
     case "CHANGES_REQUESTED":
       return "Sent back for changes";
     case "APPROVED":
@@ -193,8 +206,8 @@ function TodoLists({ user, issues, tab, stage }: { user: User; issues: Issue[]; 
   const name = (role: Role, fallback: string) => accounts().find((a) => a.role === role)?.name || fallback;
   // Two lists: the Operator's, and the review team's (Review Agent + Grace).
   const people: { role: Role; label: string; tabLabel: string }[] = [
-    { role: "operator", label: name("operator", "Frances"), tabLabel: `${name("operator", "Frances")}’s action items` },
-    { role: "approver", label: "the review team", tabLabel: `Review team’s action items (${name("approver", "Grace")} and Review Agent)` },
+    { role: "operator", label: name("operator", "Frances"), tabLabel: `Items to be reviewed by ${name("operator", "Frances")}` },
+    { role: "approver", label: "the review team", tabLabel: `Items to be reviewed by the review team (${name("approver", "Grace")} and Review Agent)` },
   ];
   const mine = user.role === "operator" ? people[0] : people[1];
   const current = people.find((p) => p.role === tab) ?? mine;
@@ -239,26 +252,33 @@ function TodoLists({ user, issues, tab, stage }: { user: User; issues: Issue[]; 
         ) : (
           <ul className="space-y-3">
             {items.map(({ issue: i, action }) => {
-              const alert = timingAlert(i);
-              const overdue = alert?.tone === "danger";
               const d = deadlines(i.issueDate);
               const due = current.role === "operator" && i.stage !== "APPROVED" ? d.submitBy : current.role !== "operator" ? d.approveBy : null;
+              const late = due ? due.getTime() < Date.now() : false;
+              const launch = countdown(i.issueDate);
               return (
                 <li key={i.id} className={`rounded-lg border border-l-4 border-slate-200 bg-white p-4 ${STAGE_THEME[i.stage].border}`}>
                   <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-3 py-1 text-sm font-bold ${launch.className}`}>{launch.label}</span>
                     <StageBadge stage={i.stage} />
-                    {overdue && <span className="rounded-full bg-rose-600 px-2.5 py-0.5 text-xs font-bold text-white">Overdue</span>}
-                    <span className="text-sm text-slate-500">Goes out {formatDate(i.issueDate)}</span>
+                    <span className="text-sm text-slate-500">Launches {formatDate(i.issueDate)}</span>
                   </div>
-                  <div className="mt-2 text-xs font-semibold text-slate-500">Subject line</div>
+                  <div className="mt-3 text-sm text-slate-600">
+                    <span className="font-semibold text-slate-800">Mailing list:</span> The Pack Leader
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-slate-500">Subject line</div>
                   <Link href={`/issues/${i.id}`} className="block text-lg font-bold leading-snug hover:underline">
                     {i.subject || "No subject line yet"}
                   </Link>
-                  <p className={`mt-1 text-sm font-semibold ${overdue ? "text-rose-800" : "text-slate-800"}`}>{action}</p>
-                  <p className="mt-0.5 text-sm text-slate-500">
-                    {i.stage === "READY_FOR_REVIEW" && i.submittedAt ? `Waiting since ${formatPacific(new Date(i.submittedAt))}` : null}
-                    {i.stage === "READY_FOR_REVIEW" && i.submittedAt && due ? " · " : null}
-                    {due ? `${current.role === "operator" ? "Due" : "Approve by"} ${formatPacific(due)}` : null}
+                  <p className="mt-1 text-sm text-slate-600">
+                    <span className="font-semibold text-slate-800">Where it is:</span> {statusLine(i)}.
+                  </p>
+                  <p className={`mt-2 text-base font-semibold ${late ? "text-rose-800" : "text-slate-900"}`}>
+                    <span className="font-bold">To do:</span> {action}
+                  </p>
+                  <p className={`mt-0.5 text-sm ${late ? "font-semibold text-rose-700" : "text-slate-500"}`}>
+                    {due ? (late ? `Overdue: this step was due ${formatPacific(due)}` : `Due ${formatPacific(due)}`) : null}
+                    {i.stage === "READY_FOR_REVIEW" && i.submittedAt ? ` · waiting since ${formatPacific(new Date(i.submittedAt))}` : null}
                     {i.stage === "READY_FOR_REVIEW" && i.scorecard ? ` · Reviewer: ${i.scorecard.verdict} (${i.scorecard.valueScore}/10)` : null}
                   </p>
                 </li>
