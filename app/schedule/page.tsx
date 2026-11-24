@@ -16,6 +16,16 @@ function timeOnly(date: Date, tz: string) {
   return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(date).replace(" AM", " am").replace(" PM", " pm");
 }
 
+// "4 days until it sends", counted in Pacific days.
+function daysUntil(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const [ty, tm, td] = pacificToday().split("-").map(Number);
+  const days = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86_400_000);
+  if (days < 0) return `Send date passed ${-days} day${days === -1 ? "" : "s"} ago`;
+  if (days === 0) return "Sends today";
+  return `${days} day${days === 1 ? "" : "s"} until it sends`;
+}
+
 function whenLabel(i: number) {
   if (i === 0) return "Next up";
   if (i === 1) return "The week after";
@@ -52,8 +62,8 @@ export default async function SchedulePage() {
       <div>
         <h1 className="text-[2rem] font-bold leading-tight tracking-tight">Broadcast and email send schedule</h1>
         <p className="mt-1 max-w-3xl text-base text-slate-700">
-          When each email and broadcast to the CBI K9 mailing list goes out. The Pack Leader sends automatically every Wednesday once Grace approves
-          it. Each week shows the subject line, what the email is about, and what still has to happen before it can send.
+          When each email and broadcast to the CBI K9 mailing list goes out. The Pack Leader sends automatically every Wednesday once the Growth Impact
+          Group approver (Grace) approves it. Each week shows the subject line, what the email is about, and what still has to happen before it can send.
         </p>
         <div className="mt-3">
           <TimezonePicker tz={tz} back="/schedule" />
@@ -66,7 +76,7 @@ export default async function SchedulePage() {
         <ol className="mt-3 grid gap-3 sm:grid-cols-3">
           {[
             { step: "1", title: "Draft is due", at: example.submitBy, who: "Frances submits the finished email for review." },
-            { step: "2", title: "Grace approves", at: example.approveBy, who: "Grace reads it and approves in writing, or asks for changes." },
+            { step: "2", title: "Growth Impact Group approves", at: example.approveBy, who: "Grace reads it and approves in writing, or asks for changes." },
             { step: "3", title: "It sends automatically", at: example.sendAt, who: "The approved email goes out to the list on its own." },
           ].map((s) => (
             <li key={s.step} className="rounded-lg bg-slate-50 p-4 ring-1 ring-slate-200">
@@ -80,9 +90,13 @@ export default async function SchedulePage() {
             </li>
           ))}
         </ol>
-        <p className="mt-3 text-sm text-slate-600">
-          Not approved by Wednesday 9:00 am? It moves to Thursday 10:00 am. Not approved by Thursday noon? That week is skipped.
-        </p>
+        <div className="mt-4 rounded-lg border-2 border-rose-300 bg-rose-50 px-4 py-3 text-base text-rose-900">
+          <p className="font-bold">If no approval is made, nothing will send.</p>
+          <p className="mt-1 text-sm">
+            An email can only be scheduled after Grace approves it, and reopening or holding it cancels the send. Not approved by Wednesday 9:00 am?
+            It moves to Thursday 10:00 am. Not approved by Thursday noon? That week is skipped.
+          </p>
+        </div>
       </section>
 
       <section className="space-y-4">
@@ -110,6 +124,7 @@ export default async function SchedulePage() {
                 <div className="shrink-0 sm:w-52">
                   <div className={`text-sm font-bold uppercase tracking-wide ${current ? (theme?.heading ?? "text-rose-700") : "text-slate-500"}`}>{whenLabel(idx)}</div>
                   <div className="text-xl font-bold leading-tight">{formatDate(date).replace(/, \d{4}$/, "")}</div>
+                  {issue?.stage !== "SENT" && issue?.stage !== "HELD" && <div className="mt-1 text-base font-bold text-rose-600">{daysUntil(date)}</div>}
                   <div className="mt-1 text-sm font-semibold text-slate-700">{issue?.stage === "SENT" ? "Sent" : "Sends"} {timeOnly(issue?.sentAt ? new Date(issue.sentAt) : sendAt, "America/Los_Angeles")} Pacific</div>
                   {!pacificOnly && <div className="text-sm text-slate-500">{dayTime(issue?.sentAt ? new Date(issue.sentAt) : sendAt, tz.id)} {tz.label}</div>}
                 </div>
@@ -123,13 +138,17 @@ export default async function SchedulePage() {
                         {urgency && <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${urgency.className}`}>{urgency.label}</span>}
                         <span className="text-sm text-slate-500">Email #{issue.number}</span>
                       </div>
-                      <div>
-                        <div className="text-xs font-semibold text-slate-500">Subject line</div>
-                        <Link href={`/issues/${issue.id}`} className="block text-lg font-bold leading-snug text-slate-900 hover:underline">
-                          {issue.subject || "No subject line yet"}
-                        </Link>
-                      </div>
-                      <p className="text-base text-slate-700">{about || "No description yet. Open the email to write it."}</p>
+                      {/* Shown the way it lands in an inbox. */}
+                      <Link href={`/issues/${issue.id}`} className="block rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-300">
+                        <div className="text-sm text-slate-500">
+                          <span className="font-semibold text-slate-600">From:</span> The Pack Leader · CBI K9
+                        </div>
+                        <div className="mt-0.5 text-lg leading-snug">
+                          <span className="font-semibold text-slate-500">Subject:</span>{" "}
+                          <span className="font-bold text-slate-900">{issue.subject || "No subject line yet"}</span>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-base text-slate-600">{about || "No description yet. Open the email to write it."}</p>
+                      </Link>
                       {issue.body.trim() && (
                         <details className="group rounded-lg bg-white/70 ring-1 ring-slate-200">
                           <summary className="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-indigo-700 [&::-webkit-details-marker]:hidden">
