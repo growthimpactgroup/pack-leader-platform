@@ -112,7 +112,11 @@ function inlineStyles(html: string): string {
 export function newsletterHtml(issue: Issue): string {
   const body = inlineStyles(bodyHtml(issue));
   const pad = marginPx(issue.bodyMargin);
-  const preheader = htmlToText(issue.bodyHtml ?? issue.body).split("\n").find((l) => l.trim()) ?? "";
+  const preheader =
+    issue.preheader?.trim() ||
+    (htmlToText(issue.bodyHtml ?? issue.body)
+      .split("\n")
+      .find((l) => l.trim() && !l.trim().startsWith("[")) ?? "");
   const demo = demoMode().on
     ? `<tr><td style="background:#fef3c7;color:#92400e;font-size:12px;padding:8px ${pad}px;text-align:center">DEMO MODE: this would go to the pack-leader list. It was sent only to you.</td></tr>`
     : "";

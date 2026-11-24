@@ -18,6 +18,7 @@ import { AlertBox, ErrorBox, STAGE_THEME, StageBadge } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
 import { demoMode } from "@/lib/demo";
 import { autoChecks } from "@/lib/packet";
+import { emailChecks } from "@/lib/email-checks";
 import { topicLabel } from "@/lib/problems";
 import { deadlines, formatDate, formatPacific, suggestedSendTime, timingAlert, toPacificInput, upcomingWednesdays } from "@/lib/schedule";
 import { readDb } from "@/lib/store";
@@ -63,6 +64,7 @@ export default async function IssuePage({ params, searchParams }: PageProps<"/is
 
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
         <div className="space-y-5">
+          {issue.generated && <GeneratedPanel issue={issue} />}
           {editable ? <PacketForm issue={issue} /> : <PacketView issue={issue} />}
           <History issue={issue} />
         </div>
@@ -513,6 +515,56 @@ function History({ issue }: { issue: Issue }) {
           </li>
         ))}
       </ol>
+    </section>
+  );
+}
+
+// What Claude wrote, what it was based on, and how the draft scores on inbox
+// and SEO checks (recomputed from the current saved text).
+function GeneratedPanel({ issue }: { issue: Issue }) {
+  const g = issue.generated!;
+  const checks = emailChecks({ subject: issue.subject, preheader: issue.preheader, html: bodyHtml(issue), keywords: g.keywords, metaDescription: g.metaDescription });
+  const passed = checks.filter((c) => c.ok).length;
+  return (
+    <section className="card space-y-4 border-indigo-200">
+      <div>
+        <h2 className="text-lg font-bold">✨ Draft written by Claude</h2>
+        <p className="text-sm text-slate-600">
+          Tone: {g.tone.split(":")[0]} · {g.sourceCount} trusted source{g.sourceCount === 1 ? "" : "s"} in the checklist below
+          {g.droppedSources ? ` · ${g.droppedSources} unverified link${g.droppedSources === 1 ? "" : "s"} removed` : ""}
+        </p>
+      </div>
+      {g.writerNotes && (
+        <p className="rounded-lg bg-amber-50 p-3 text-base text-amber-950 ring-1 ring-amber-200">
+          <span className="font-bold">Check before submitting:</span> {g.writerNotes}
+        </p>
+      )}
+      <div className="grid gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <div className="font-bold text-slate-700">Inbox preview text</div>
+          <p className="text-slate-700">{issue.preheader || "—"}</p>
+        </div>
+        <div>
+          <div className="font-bold text-slate-700">SEO (for the web version)</div>
+          <p className="text-slate-700">{g.metaDescription}</p>
+          <p className="mt-1 text-slate-500">Search phrases: {g.keywords.join(", ")}</p>
+        </div>
+      </div>
+      <details className="rounded-lg ring-1 ring-slate-200" open={passed < checks.length}>
+        <summary className="cursor-pointer px-3 py-2 font-bold">
+          Inbox and SEO checks: {passed} of {checks.length} pass
+        </summary>
+        <ul className="space-y-2 border-t border-slate-200 p-3 text-sm">
+          {checks.map((c) => (
+            <li key={c.label} className="flex gap-2">
+              <span className={c.ok ? "text-emerald-600" : "text-amber-600"}>{c.ok ? "✓" : "!"}</span>
+              <span>
+                <span className="font-semibold">{c.label}.</span> <span className="text-slate-600">{c.detail}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </details>
     </section>
   );
 }

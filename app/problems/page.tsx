@@ -257,6 +257,11 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
                         <button className="btn-primary w-full">{status.issues.length ? "Create another draft" : "Create draft"}</button>
                       </form>
                     )}
+                    {operator && (
+                      <Link href={`/problems/${p.id}/generate`} className="btn-success">
+                        ✨ Generate draft
+                      </Link>
+                    )}
                     <Link href={`/problems/${p.id}`} className="btn-secondary">
                       {operator ? "Open and edit" : "Open"}
                     </Link>

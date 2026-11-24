@@ -101,6 +101,9 @@ export type Issue = {
   problemId?: string;
   problemCode?: string;
   problemTitle?: string;
+  preheader?: string; // inbox preview text; falls back to the first line of the body
+  // Set when the draft was written by "Generate draft" (lib/generate-draft.ts).
+  generated?: { tone: string; at: string; metaDescription: string; keywords: string[]; writerNotes: string; sourceCount: number; droppedSources: number };
   checklist: ChecklistItem[];
   ruleCheck: RuleCheck;
   flags: string;

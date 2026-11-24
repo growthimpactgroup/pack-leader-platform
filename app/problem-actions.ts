@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { rateSubject, ratingConfigured } from "@/lib/ai-rating";
 import { rateSubjectLines, refreshTrends } from "@/lib/refresh";
+import { generateDraft, generatorConfigured } from "@/lib/generate-draft";
+import { sanitizeEmailHtml } from "@/lib/sanitize";
 import { parseProblemsPdf } from "@/lib/pdf-problems";
 import { formatCode, parseReferences, suggestedPhrasesFor, topicLabel } from "@/lib/problems";
 import { htmlToText, textToHtml } from "@/lib/richtext";
@@ -282,4 +284,92 @@ export async function refreshTrendsNow() {
 export async function rateSubjectLinesNow() {
   await requireRole("operator");
   done(`/problems?refreshed=${encodeURIComponent(summary("Subject lines rated", await rateSubjectLines()))}`);
+}
+
+// ---------- Generate a draft with Claude ----------
+
+export async function generateDraftFromProblem(formData: FormData) {
+  const user = await requireRole("operator");
+  const id = str(formData, "id");
+  const back = `/problems/${id}/generate`;
+  if (!generatorConfigured()) done(back, "Claude isn’t connected yet (ANTHROPIC_API_KEY missing in Vercel).");
+  const tone = str(formData, "customTone") || str(formData, "tone") || "Friendly and practical";
+  const notes = str(formData, "notes");
+
+  const problem = (await updateDb((db) => structuredClone(db.problems.find((x) => x.id === id)))) as Problem | undefined;
+  if (!problem) done("/problems", "That idea no longer exists.");
+
+  let draft: Awaited<ReturnType<typeof generateDraft>>;
+  try {
+    draft = await generateDraft(problem!, tone, notes);
+  } catch (e) {
+    return done(back, `Couldn’t generate the draft: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  const result = await updateDb((db) => {
+    const p = db.problems.find((x) => x.id === id);
+    if (!p) return { error: "That idea no longer exists." };
+    const taken = new Set(db.issues.map((i) => i.issueDate));
+    const issueDate = upcomingWednesdays(26).find((d) => !taken.has(d));
+    if (!issueDate) return { error: "Every Wednesday in the next six months already has an issue." };
+    const number = db.issues.reduce((max, i) => Math.max(max, i.number), 0) + 1;
+
+    // The manual's fixed lines wrap the generated body exactly as written.
+    const bodyHtml = sanitizeEmailHtml(
+      `<p>[OPENING LINE: human writes]</p>` +
+        draft.bodyHtml +
+        `<p>This is one of the problems the CBI dashboard was built to solve.</p>` +
+        `<p>- The CBI K9 team</p>` +
+        `<p>P.S. Not a CBI client yet? Book a 15-minute call: [BOOKING LINK]</p>`,
+    );
+
+    // New sources also go onto the idea, so they're kept for next time.
+    for (const s of draft.sources) if (!p.references.some((r) => r.url === s.url)) p.references.push(s);
+
+    const issue: Issue = {
+      id: crypto.randomUUID(),
+      number,
+      issueDate,
+      stage: "DRAFT",
+      subject: draft.subject,
+      altSubjects: draft.altSubjects.join("\n"),
+      preheader: draft.preheader,
+      body: "",
+      bodyHtml,
+      bodyMargin: "normal",
+      problemOfWeek: `${topicLabel(p.code)} · ${p.title}`,
+      problemId: p.id,
+      problemCode: p.code,
+      problemTitle: p.title,
+      // Every source becomes a claim to verify; Frances still opens and reads each one.
+      checklist: draft.sources.map((r, i) => ({ id: String(i), claim: r.label, source: r.url, verified: false })),
+      ruleCheck: { noDashboardPlays: false, noSetupPromises: false, noUnsourcedNumbers: false, fixedLinesExact: false },
+      flags: draft.writerNotes,
+      testEmailSentAt: null,
+      submittedAt: null,
+      scorecard: null,
+      decision: null,
+      scheduledFor: null,
+      sentAt: null,
+      holdReason: null,
+      results: { openRate: "", replies: "", callsBooked: "", notes: "" },
+      generated: {
+        tone,
+        at: now(),
+        metaDescription: draft.metaDescription,
+        keywords: draft.keywords,
+        writerNotes: draft.writerNotes,
+        sourceCount: draft.sources.length,
+        droppedSources: draft.droppedSources,
+      },
+      history: [{ at: now(), by: user.name, role: user.role, action: `Generated Pack Leader #${number} from ${topicLabel(p.code)} with Claude (tone: ${tone})` }],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    issue.body = htmlToText(bodyHtml);
+    db.issues.push(issue);
+    return { issueId: issue.id };
+  });
+  if ("error" in result) done(back, result.error);
+  done(`/issues/${result.issueId}?generated=1`);
 }
