@@ -39,7 +39,7 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
   const all = [...db.problems]
     .sort((a, b) => a.code.localeCompare(b.code))
     .map((p) => ({ p, status: problemStatus(p, db.issues) }));
-  // Rank every idea (the list keeps its order; the rank shows beside each one).
+  // Rank every idea; the list is shown best-ranked first.
   const ranks = rankIdeas(all.map(({ p, status }) => ({ p, stage: status.stage })), Number(pacificToday().slice(5, 7)), db.issues);
   const canFill = user.role === "operator" && db.problems.some((p) => !p.searchPhrases?.trim() && suggestedPhrasesFor(p.title));
   const shown = all.filter(({ p, status }) => {
@@ -48,6 +48,8 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
     if (filter) return status.stage?.toLowerCase() === filter;
     return true;
   });
+  // Best-ranked first.
+  shown.sort((a, b) => (ranks.get(a.p.id)?.rank ?? 1e9) - (ranks.get(b.p.id)?.rank ?? 1e9));
 
   return (
     <div className="space-y-6">
@@ -56,7 +58,8 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
           <h1 className="text-[2rem] font-bold leading-tight tracking-tight">Email and broadcast subject lines and content ideas</h1>
           <p className="mt-1 max-w-3xl text-base text-slate-700">
             Ideas for upcoming emails to the CBI K9 mailing list. Each one is a subject line and a short preview of what the email would say. Click a
-            subject line to see the full idea, then choose <span className="font-semibold">Create draft</span> to start writing it.
+            subject line to see the full idea, then choose <span className="font-semibold">Create draft</span> to start writing it. The
+            list is sorted by rank, so the strongest idea is at the top.
           </p>
         </div>
         {operator && (
