@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { ConfirmButton } from "@/app/confirm-button";
-import { createDraftFromProblem, deleteProblem, fillSuggestedPhrases, uploadProblemsPdf } from "@/app/problem-actions";
+import { createDraftFromProblem, deleteProblem, fillSuggestedPhrases, rateSubjectLinesNow, refreshTrendsNow, uploadProblemsPdf } from "@/app/problem-actions";
+import { ratingConfigured } from "@/lib/ai-rating";
+import { trendsConfigured } from "@/lib/trends";
+import { formatPacific } from "@/lib/schedule";
 import { ErrorBox, Notice, ProblemStatusBadge, STAGE_THEME } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
 import { problemStatus, splitPhrases, suggestedPhrasesFor, topicLabel } from "@/lib/problems";
 import { rankIdeas } from "@/lib/rank";
 import { pacificToday } from "@/lib/schedule";
-import { STAGES, type Stage } from "@/lib/types";
+import { STAGES, type Problem, type Stage } from "@/lib/types";
 import { readDb } from "@/lib/store";
 
 export const metadata = { title: "Subject line and content ideas — CBI Newsletter" };
@@ -66,6 +69,8 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
       <ErrorBox message={typeof params.error === "string" ? params.error : undefined} />
       {params.added && <Notice>Added {String(params.added)} idea{params.added === "1" ? "" : "s"}.</Notice>}
       {params.deleted && <Notice>Idea deleted. Any drafts made from it keep their text.</Notice>}
+      {typeof params.refreshed === "string" && <Notice>{params.refreshed}</Notice>}
+      <RankingSources problems={db.problems} operator={user.role === "operator"} />
       {params.phrases && <Notice>Filled in search phrases for {String(params.phrases)} idea{params.phrases === "1" ? "" : "s"}.</Notice>}
       {canFill && (
         <form action={fillSuggestedPhrases} className="card flex flex-col gap-3 border-indigo-200 bg-indigo-50 sm:flex-row sm:items-center">
@@ -176,12 +181,21 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
                         <div>
                           <div className="text-sm font-bold uppercase tracking-wide text-slate-500">Search phrases</div>
                           <div className="mt-1 flex flex-wrap gap-2">
-                            {splitPhrases(p.searchPhrases).map((ph) => (
-                              <span key={ph} className="rounded-full bg-white px-3 py-1 text-sm text-slate-700 ring-1 ring-slate-300">
-                                {ph}
-                              </span>
-                            ))}
+                            {splitPhrases(p.searchPhrases).map((ph) => {
+                              const c = p.trend?.phrases.find((x) => x.phrase.toLowerCase() === ph.toLowerCase())?.change;
+                              return (
+                                <span key={ph} className="rounded-full bg-white px-3 py-1 text-sm text-slate-700 ring-1 ring-slate-300">
+                                  {ph}
+                                  {typeof c === "number" && (
+                                    <span className={`ml-1.5 font-bold ${c >= 15 ? "text-emerald-700" : c <= -15 ? "text-rose-700" : "text-slate-500"}`}>
+                                      {c >= 0 ? "▲" : "▼"} {Math.abs(c)}%
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })}
                           </div>
+                          {p.trend && <p className="mt-1 text-sm text-slate-500">Google searches in the US, last 4 weeks vs the 8 before. Checked {formatPacific(new Date(p.trend.checkedAt))}.</p>}
                         </div>
                       )}
                       {p.references.length > 0 && (
@@ -270,5 +284,51 @@ function CopyBlock({ title, text, strong }: { title: string; text: string; stron
         ))}
       </div>
     </div>
+  );
+}
+
+// Where the live parts of the ranking stand, with buttons to refresh them now.
+function RankingSources({ problems, operator }: { problems: Problem[]; operator: boolean }) {
+  const trendsOn = trendsConfigured();
+  const ratingOn = ratingConfigured();
+  const lastTrend = problems.map((p) => p.trend?.checkedAt).filter(Boolean).sort().pop();
+  const rated = problems.filter((p) => p.aiRating && p.aiRating.forTitle === p.title).length;
+  const row = (on: boolean, title: string, status: string, offText: string, action: (() => Promise<void>) | null, label: string) => (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex-1">
+        <div className="font-bold">
+          <span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${on ? "bg-emerald-500" : "bg-slate-300"}`} />
+          {title}
+        </div>
+        <p className="text-sm text-slate-600">{on ? status : offText}</p>
+      </div>
+      {on && operator && action && (
+        <form action={action}>
+          <button className="btn-secondary">{label}</button>
+        </form>
+      )}
+    </div>
+  );
+  return (
+    <section className="card space-y-3">
+      <h2 className="text-lg font-bold">What the ranking uses</h2>
+      {row(
+        trendsOn,
+        "Live search trends",
+        lastTrend ? `Last checked ${formatPacific(new Date(lastTrend))}. Checks again every Monday.` : "Connected, not checked yet. Checks every Monday, or now.",
+        "Not connected yet. Once GIG’s DataForSEO login is added in Vercel, this checks Google search interest for each idea’s search phrases every Monday.",
+        refreshTrendsNow,
+        "Check trends now",
+      )}
+      {row(
+        ratingOn,
+        "Claude subject-line ratings",
+        `${rated} of ${problems.length} subject lines rated. New and edited ideas are rated automatically.`,
+        "Not connected yet. Once GIG’s Anthropic API key is added in Vercel, Claude rates each subject line 1–10 with a one-line reason.",
+        rateSubjectLinesNow,
+        "Rate subject lines now",
+      )}
+      <p className="text-sm text-slate-500">Also used: past open rates (after 3 logged sends), how recent the source is, whether it’s about pet care, and the time of year.</p>
+    </section>
   );
 }

@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
+import { rateSubject, ratingConfigured } from "@/lib/ai-rating";
+import { rateSubjectLines, refreshTrends } from "@/lib/refresh";
 import { parseProblemsPdf } from "@/lib/pdf-problems";
 import { formatCode, parseReferences, suggestedPhrasesFor, topicLabel } from "@/lib/problems";
 import { htmlToText, textToHtml } from "@/lib/richtext";
@@ -54,6 +56,7 @@ export async function createProblem(formData: FormData) {
       source: "Added by hand",
     }),
   );
+  await rateOne(problem.id);
   done(`/problems/${problem.id}`);
 }
 
@@ -74,6 +77,7 @@ export async function updateProblem(formData: FormData) {
       updatedAt: now(),
     });
   });
+  await rateOne(id);
   done(`/problems/${id}?saved=1`);
 }
 
@@ -248,4 +252,34 @@ export async function fillSuggestedPhrases() {
     return n;
   });
   done(`/problems?phrases=${filled}`);
+}
+
+// Claude rates the subject line when it is new or has changed. A failure here
+// never blocks saving; the rating is just left for the next run.
+async function rateOne(id: string) {
+  if (!ratingConfigured()) return;
+  const p = (await updateDb((db) => structuredClone(db.problems.find((x) => x.id === id)))) as Problem | undefined;
+  if (!p || p.aiRating?.forTitle === p.title) return;
+  try {
+    const rating = await rateSubject(p);
+    await updateDb((db) => {
+      const target = db.problems.find((x) => x.id === id);
+      if (target) target.aiRating = rating;
+    });
+  } catch {
+    // Left unrated; "Rate subject lines" or the weekly job will retry.
+  }
+}
+
+const summary = (what: string, r: { done: number; failed: number; skipped: string | null; error?: string }) =>
+  r.skipped ?? `${what}: ${r.done} done${r.failed ? `, ${r.failed} failed (${r.error})` : ""}.`;
+
+export async function refreshTrendsNow() {
+  await requireRole("operator");
+  done(`/problems?refreshed=${encodeURIComponent(summary("Trends checked", await refreshTrends()))}`);
+}
+
+export async function rateSubjectLinesNow() {
+  await requireRole("operator");
+  done(`/problems?refreshed=${encodeURIComponent(summary("Subject lines rated", await rateSubjectLines()))}`);
 }

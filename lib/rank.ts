@@ -3,13 +3,13 @@ import type { Issue, Problem, Stage } from "./types";
 
 // Ranks content ideas so the strongest candidate for the next email stands out.
 // It's a points system built from what the idea itself says, not live trend
-// data (nothing external is connected yet). Out of 100:
-//   Timely right now (season)        20
-//   Fresh source (year of the data)  15
-//   About pet-care businesses        20
-//   Subject line pull (curiosity)    20
-//   Not used yet                     10
-//   How our past emails did          15  (from open rates logged after each send)
+// Out of 100:
+//   Trending now (live search interest, lib/trends.ts)   25
+//   How our past emails did (logged open rates)          15
+//   Subject line pull (Claude's rating, else word rules) 20
+//   Fresh source (year of the data)                      15
+//   About pet-care businesses                            15
+//   Timely right now (season)                            10
 
 export type Rank = { rank: number; score: number; reasons: string[] };
 
@@ -29,7 +29,7 @@ export function scoreIdea(p: Problem, stage: Stage | null, month: number): { sco
 
   const season = SEASONS.find((s) => s.months.includes(month));
   if (season && season.words.test(text)) {
-    score += 20;
+    score += 10;
     reasons.push(season.label);
   }
 
@@ -48,31 +48,48 @@ export function scoreIdea(p: Problem, stage: Stage | null, month: number): { sco
   }
 
   if (/pet-specific|\bpet\b|\bpets\b|\bvet|\bdog|groom|boarding|daycare|sitter/i.test(text) && !/not pet-specific/i.test(text)) {
-    score += 20;
+    score += 15;
     reasons.push("About pet-care businesses");
   } else {
     reasons.push("General small-business number");
   }
 
+  const rated = p.aiRating && p.aiRating.forTitle === p.title ? p.aiRating : null;
   const t = p.title;
   let pull = 0;
   if (/\byou(r)?\b/i.test(t)) pull += 8;
   if (PULL.test(t.replace(/\byou(r)?\b/gi, ""))) pull += 8;
   if (/\?$/.test(t.trim())) pull += 5;
   if (t.length >= 20 && t.length <= 55) pull += 4;
-  pull = Math.round((Math.min(25, pull) * 20) / 25);
-  score += pull;
-  reasons.push(pull >= 14 ? "Strong subject line" : pull >= 8 ? "Decent subject line" : "Subject line could be punchier");
-
-  if (stage === null) {
-    score += 10;
-    reasons.push("Not used yet");
-  } else if (stage === "SENT") {
-    reasons.push("Already sent");
+  if (rated) {
+    pull = rated.score * 2;
+    reasons.push(`Claude rates the subject line ${rated.score}/10: ${rated.reason}`);
   } else {
-    score += 3;
-    reasons.push("Already being drafted");
+    pull = Math.round((Math.min(25, pull) * 20) / 25);
+    reasons.push(pull >= 14 ? "Strong subject line" : pull >= 8 ? "Decent subject line" : "Subject line could be punchier");
   }
+  score += pull;
+
+  // Live search interest for the idea's search phrases.
+  const tr = p.trend;
+  if (!tr) {
+    reasons.push(splitPhrases(p.searchPhrases).length ? "Trends: not checked yet" : "Trends: add search phrases to check");
+  } else if (tr.direction === "rising") {
+    score += 25;
+    reasons.push(`Trending up: searches +${tr.change}% in the last 4 weeks`);
+  } else if (tr.direction === "steady") {
+    score += 12;
+    reasons.push(`Searches steady (${tr.change! >= 0 ? "+" : ""}${tr.change}%)`);
+  } else if (tr.direction === "falling") {
+    score += 4;
+    reasons.push(`Searches falling (${tr.change}%)`);
+  } else {
+    reasons.push("Trends: not enough search data for these phrases");
+  }
+
+  if (stage === null) reasons.push("Not used yet");
+  else if (stage === "SENT") reasons.push("Already sent");
+  else reasons.push("Already being drafted");
 
   return { score, reasons };
 }

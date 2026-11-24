@@ -139,7 +139,20 @@ export type TopicContext = {
   searchPhrases?: string; // 2–3 phrases people search for, comma or line separated (for ranking)
 };
 
+// Live search interest for an idea's search phrases (lib/trends.ts).
+export type TrendCheck = {
+  checkedAt: string;
+  direction: "rising" | "steady" | "falling" | "no-data";
+  change: number | null; // % change, last 4 weeks vs the 8 weeks before
+  phrases: { phrase: string; change: number | null }[];
+};
+
+// Claude's rating of the subject line (lib/ai-rating.ts).
+export type SubjectRating = { score: number; reason: string; forTitle: string; ratedAt: string };
+
 export type Problem = TopicContext & {
+  trend?: TrendCheck;
+  aiRating?: SubjectRating;
   id: string;
   code: string; // unique ID, e.g. PB-007 (shown as "Topic 7")
   title: string; // the subject line idea
