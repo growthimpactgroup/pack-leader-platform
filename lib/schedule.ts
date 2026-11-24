@@ -82,13 +82,13 @@ export function timingAlert(issue: Issue, now = new Date()): Alert | null {
     return { tone: "danger", text: "No approval by Thursday 12:00 pm. Per the manual this issue is held and the week is skipped." };
   }
   if (now >= d.approveBy) {
-    return { tone: "danger", text: "Missed Wednesday 9:00 am approval. Send moves to Thursday 10:00 am; send Grace one reminder." };
+    return { tone: "danger", text: "Missed Wednesday 9:00 am approval. Send moves to Thursday 10:00 am; send Growth Impact Group one reminder." };
   }
   if (s === "DRAFT" || s === "CHANGES_REQUESTED") {
     if (now >= d.submitBy) return { tone: "danger", text: `Packet was due ${formatPacific(d.submitBy)}. Submit as soon as possible.` };
     return { tone: "info", text: `Submit for review by ${formatPacific(d.submitBy)}.` };
   }
-  return { tone: "info", text: `Waiting on approval. Target date to send out: ${formatPacific(d.sendAt)}. Grace approves by ${formatPacific(d.approveBy)}.` };
+  return { tone: "info", text: `Waiting on approval. Target date to send out: ${formatPacific(d.sendAt)}. Growth Impact Group approves by ${formatPacific(d.approveBy)}.` };
 }
 
 // The earliest send slot the rules allow if approval lands at `approvedAt`.

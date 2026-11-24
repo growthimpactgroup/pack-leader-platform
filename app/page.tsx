@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { decide } from "./actions";
+import { Countdown } from "./countdown";
 import { TimezonePicker } from "./timezone-picker";
 import { describeIssue } from "@/lib/describe";
 import { bodyHtml, marginPx } from "@/lib/richtext";
@@ -17,7 +18,7 @@ function todoFor(role: Role, issues: Issue[], now = Date.now()): { issue: Issue;
   return issues.flatMap((i) => {
     if (role === "operator") {
       if (i.stage === "DRAFT") return [{ issue: i, action: "Finish writing it and submit it for review." }];
-      if (i.stage === "CHANGES_REQUESTED") return [{ issue: i, action: "Make Grace’s changes and resubmit." }];
+      if (i.stage === "CHANGES_REQUESTED") return [{ issue: i, action: "Make Growth Impact Group’s changes and resubmit." }];
       if (i.stage === "APPROVED" && !i.scheduledFor) return [{ issue: i, action: "Approved. Schedule the send." }];
       if (i.stage === "APPROVED" && new Date(i.scheduledFor!).getTime() < now) return [{ issue: i, action: "Its send time has passed. Mark it as sent." }];
       return [];
@@ -28,8 +29,8 @@ function todoFor(role: Role, issues: Issue[], now = Date.now()): { issue: Issue;
       {
         issue: i,
         action: i.scorecard
-          ? "Grace: read it, then approve it or ask for changes."
-          : "Review Agent: post the scorecard. Grace: read it, then approve it or ask for changes.",
+          ? "Growth Impact Group: read it, then approve it or ask for changes."
+          : "Review Agent: post the scorecard. Growth Impact Group: read it, then approve it or ask for changes.",
       },
     ];
   });
@@ -63,13 +64,19 @@ function countdown(issueDate: string): { label: string; className: string } {
   return { label: `${days} days to launch`, className: "bg-slate-100 text-slate-700 ring-1 ring-slate-300" };
 }
 
+// "Wednesday, November 25"
+function longDate(date: string) {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" }).format(new Date(Date.UTC(y, m - 1, d)));
+}
+
 // Where an email stands, in plain words.
 function statusLine(i: Issue): string {
   switch (i.stage) {
     case "DRAFT":
       return "Still being written, not ready for approval yet";
     case "READY_FOR_REVIEW":
-      return i.scorecard ? "Waiting for review: the Review Agent is done, waiting for Grace" : "Waiting for review by the Review Agent and Grace";
+      return i.scorecard ? "Waiting for review: the Review Agent is done, waiting for Growth Impact Group" : "Waiting for review by the Review Agent and Growth Impact Group";
     case "CHANGES_REQUESTED":
       return "Sent back for changes";
     case "APPROVED":
@@ -101,7 +108,7 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
         <div>
           <h1 className="text-4xl font-bold tracking-tight">CBI Newsletter System</h1>
           <p className="mt-1 max-w-2xl text-base text-slate-700">
-            Where The Pack Leader, CBI K9’s weekly Wednesday email, gets written, reviewed, approved by Grace and scheduled to send.
+            Where The Pack Leader, CBI K9’s weekly Wednesday email, gets written, reviewed, approved by Growth Impact Group and scheduled to send.
           </p>
         </div>
         {user.role === "operator" && (
@@ -112,18 +119,16 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
       </div>
 
       <section className={`card ${upcoming ? `border-l-8 ${STAGE_THEME[upcoming.stage].border}` : ""}`}>
-        <h2 className={SECTION}>Upcoming</h2>
+        <h2 className={SECTION}>Upcoming newsletter to be uploaded</h2>
         {upcoming ? (
           <div className="mt-3 space-y-3">
-            <p className="text-base font-semibold text-slate-700">
-              {upcoming.stage === "APPROVED" ? "Next email to go out" : "Next email to be approved"} · goes out {formatDate(upcoming.issueDate)}
+            <p className="text-lg font-bold text-slate-800">
+              {upcoming.stage === "APPROVED" ? "Next email to go out" : "Next email to be approved"} · goes out {formatDate(upcoming.issueDate)}, 10:00 am Pacific
             </p>
-            <div>
-              <div className="text-sm font-semibold text-slate-500">Subject line</div>
-              <Link href={`/issues/${upcoming.id}`} className="text-2xl font-bold leading-snug hover:underline">
-                {upcoming.subject || "No subject line yet"}
-              </Link>
-            </div>
+            <Countdown target={(upcoming.scheduledFor ? new Date(upcoming.scheduledFor) : deadlines(upcoming.issueDate).sendAt).toISOString()} />
+            <Link href={`/issues/${upcoming.id}`} className="block text-2xl leading-snug hover:underline">
+              <span className="font-bold text-slate-500">Subject line:</span> <span className="font-bold">{upcoming.subject || "No subject line yet"}</span>
+            </Link>
             <div className="flex flex-wrap items-center gap-3">
               <StageBadge stage={upcoming.stage} />
               <span className="text-base font-semibold text-slate-800">{statusLine(upcoming)}</span>
@@ -175,11 +180,13 @@ export default async function PipelinePage({ searchParams }: PageProps<"/">) {
           {shown.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500">{active ? `Nothing in “${TAB_LABEL[active]}” right now.` : "No emails yet."}</p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="space-y-3">
               {shown.map((i) => (
-                <IssueCard key={i.id} issue={i} showStage={!active} />
+                <li key={i.id}>
+                  <IssueCard issue={i} showStage={!active} />
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </div>
       </section>
@@ -209,11 +216,15 @@ function IssueCard({ issue, showStage }: { issue: Issue; showStage: boolean }) {
       href={`/issues/${issue.id}`}
       className={`block rounded-lg border border-l-4 border-slate-200 bg-white p-4 text-sm shadow-sm transition hover:shadow-md ${STAGE_THEME[issue.stage].border}`}
     >
-      {showStage && <StageBadge stage={issue.stage} />}
-      <div className="mt-2 text-xs font-semibold text-slate-500">Subject line</div>
-      <div className="line-clamp-2 text-base font-bold text-slate-900">{issue.subject || "No subject line yet"}</div>
-      <div className="mt-2 text-sm text-slate-600">{statusLine(issue)}</div>
-      <div className="mt-1 text-xs text-slate-500">Goes out {formatDate(issue.issueDate)} · email #{issue.number}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-bold text-slate-900">Pack Leader #{issue.number}</span>
+        {showStage && <StageBadge stage={issue.stage} />}
+        <span className="text-sm text-slate-500">Goes out {formatDate(issue.issueDate)}</span>
+      </div>
+      <div className="mt-1.5 text-lg leading-snug">
+        <span className="font-bold text-slate-500">Subject line:</span> <span className="font-bold text-slate-900">{issue.subject || "No subject line yet"}</span>
+      </div>
+      <div className="mt-1 text-base text-slate-600">{statusLine(issue)}</div>
     </Link>
   );
 }
@@ -224,8 +235,8 @@ function TodoLists({ user, issues, tab, stage }: { user: User; issues: Issue[]; 
   const name = (role: Role, fallback: string) => accounts().find((a) => a.role === role)?.name || fallback;
   // Two lists: the Operator's, and the review team's (Review Agent + Grace).
   const people: { role: Role; label: string; tabLabel: string }[] = [
-    { role: "operator", label: name("operator", "Frances"), tabLabel: `Items to be reviewed by ${name("operator", "Frances")}` },
-    { role: "approver", label: "the review team", tabLabel: `Items to be reviewed by the review team (${name("approver", "Grace")} and Review Agent)` },
+    { role: "operator", label: name("operator", "Frances"), tabLabel: name("operator", "Frances") },
+    { role: "approver", label: "the Growth Impact Group review team", tabLabel: "Growth Impact Group review team" },
   ];
   const mine = user.role === "operator" ? people[0] : people[1];
   const current = people.find((p) => p.role === tab) ?? mine;
@@ -235,9 +246,9 @@ function TodoLists({ user, issues, tab, stage }: { user: User; issues: Issue[]; 
   return (
     <section className="card p-0">
       <div className="px-5 pt-4">
-        <h2 className={SECTION}>Action items</h2>
+        <h2 className={SECTION}>Action items to be reviewed by</h2>
         <p className="mt-1 text-base text-slate-600">
-          What has to happen next for each email, and who has to do it. Use the review team’s tab to see what you’re waiting on and what to follow up on.
+          What has to happen next for each email, and who has to do it. Use the Growth Impact Group review team tab to see what you’re waiting on and what to follow up on.
         </p>
       </div>
       <nav aria-label="To-do lists" className="mt-3 flex gap-1 border-b border-slate-200 px-3">
@@ -277,16 +288,15 @@ function TodoLists({ user, issues, tab, stage }: { user: User; issues: Issue[]; 
               return (
                 <li key={i.id} className={`rounded-lg border border-l-4 border-slate-200 bg-white p-4 ${STAGE_THEME[i.stage].border}`}>
                   <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-lg font-bold text-slate-900">Launches {longDate(i.issueDate)}</span>
                     <span className={`rounded-full px-3 py-1 text-sm font-bold ${launch.className}`}>{launch.label}</span>
                     <StageBadge stage={i.stage} />
-                    <span className="text-sm text-slate-500">Launches {formatDate(i.issueDate)}</span>
                   </div>
                   <div className="mt-3 text-sm text-slate-600">
                     <span className="font-semibold text-slate-800">Mailing list:</span> The Pack Leader
                   </div>
-                  <div className="mt-1 text-xs font-semibold text-slate-500">Subject line</div>
-                  <Link href={`/issues/${i.id}`} className="block text-lg font-bold leading-snug hover:underline">
-                    {i.subject || "No subject line yet"}
+                  <Link href={`/issues/${i.id}`} className="mt-1 block text-lg leading-snug hover:underline">
+                    <span className="font-bold text-slate-500">Subject line:</span> <span className="font-bold">{i.subject || "No subject line yet"}</span>
                   </Link>
                   <p className="mt-1 text-sm text-slate-600">
                     <span className="font-semibold text-slate-800">Where it is:</span> {statusLine(i)}.

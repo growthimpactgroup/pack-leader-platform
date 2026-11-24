@@ -63,7 +63,7 @@ export default async function SchedulePage() {
         <h1 className="text-[2rem] font-bold leading-tight tracking-tight">Broadcast and email send schedule</h1>
         <p className="mt-1 max-w-3xl text-base text-slate-700">
           When each email and broadcast to the CBI K9 mailing list goes out. The Pack Leader sends automatically every Wednesday once the Growth Impact
-          Group approver (Grace) approves it. Each week shows the subject line, what the email is about, and what still has to happen before it can send.
+          Group approver approves it. Each week shows the subject line, what the email is about, and what still has to happen before it can send.
         </p>
         <div className="mt-3">
           <TimezonePicker tz={tz} back="/schedule" />
@@ -76,7 +76,7 @@ export default async function SchedulePage() {
         <ol className="mt-3 grid gap-3 sm:grid-cols-3">
           {[
             { step: "1", title: "Draft is due", at: example.submitBy, who: "Frances submits the finished email for review." },
-            { step: "2", title: "Growth Impact Group approves", at: example.approveBy, who: "Grace reads it and approves in writing, or asks for changes." },
+            { step: "2", title: "Growth Impact Group approves", at: example.approveBy, who: "Growth Impact Group reads it and approves in writing, or asks for changes." },
             { step: "3", title: "It sends automatically", at: example.sendAt, who: "The approved email goes out to the list on its own." },
           ].map((s) => (
             <li key={s.step} className="rounded-lg bg-slate-50 p-4 ring-1 ring-slate-200">
@@ -93,7 +93,7 @@ export default async function SchedulePage() {
         <div className="mt-4 rounded-lg border-2 border-rose-300 bg-rose-50 px-4 py-3 text-base text-rose-900">
           <p className="font-bold">If no approval is made, nothing will send.</p>
           <p className="mt-1 text-sm">
-            An email can only be scheduled after Grace approves it, and reopening or holding it cancels the send. Not approved by Wednesday 9:00 am?
+            An email can only be scheduled after Growth Impact Group approves it, and reopening or holding it cancels the send. Not approved by Wednesday 9:00 am?
             It moves to Thursday 10:00 am. Not approved by Thursday noon? That week is skipped.
           </p>
         </div>
