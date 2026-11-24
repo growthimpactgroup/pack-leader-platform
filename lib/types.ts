@@ -136,6 +136,7 @@ export type TopicContext = {
   overlooked?: string; // what owners aren't paying attention to
   whyNow?: string; // why they care about it right now
   stat?: string; // the one sourced number that backs it up, in one sentence
+  searchPhrases?: string; // 2–3 phrases people search for, comma or line separated (for ranking)
 };
 
 export type Problem = TopicContext & {

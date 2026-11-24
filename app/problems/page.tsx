@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { ConfirmButton } from "@/app/confirm-button";
-import { createDraftFromProblem, deleteProblem, uploadProblemsPdf } from "@/app/problem-actions";
+import { createDraftFromProblem, deleteProblem, fillSuggestedPhrases, uploadProblemsPdf } from "@/app/problem-actions";
 import { ErrorBox, Notice, ProblemStatusBadge, STAGE_THEME } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
-import { problemStatus, topicLabel } from "@/lib/problems";
+import { problemStatus, splitPhrases, suggestedPhrasesFor, topicLabel } from "@/lib/problems";
 import { rankIdeas } from "@/lib/rank";
 import { pacificToday } from "@/lib/schedule";
 import { STAGES, type Stage } from "@/lib/types";
@@ -37,7 +37,8 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
     .sort((a, b) => a.code.localeCompare(b.code))
     .map((p) => ({ p, status: problemStatus(p, db.issues) }));
   // Rank every idea (the list keeps its order; the rank shows beside each one).
-  const ranks = rankIdeas(all.map(({ p, status }) => ({ p, stage: status.stage })), Number(pacificToday().slice(5, 7)));
+  const ranks = rankIdeas(all.map(({ p, status }) => ({ p, stage: status.stage })), Number(pacificToday().slice(5, 7)), db.issues);
+  const canFill = user.role === "operator" && db.problems.some((p) => !p.searchPhrases?.trim() && suggestedPhrasesFor(p.title));
   const shown = all.filter(({ p, status }) => {
     if (q && !`${topicLabel(p.code)} ${p.title} ${p.overlooked ?? ""} ${p.whyNow ?? ""} ${p.stat ?? ""} ${p.body}`.toLowerCase().includes(q.toLowerCase())) return false;
     if (filter === "new") return status.stage === null;
@@ -65,6 +66,19 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
       <ErrorBox message={typeof params.error === "string" ? params.error : undefined} />
       {params.added && <Notice>Added {String(params.added)} idea{params.added === "1" ? "" : "s"}.</Notice>}
       {params.deleted && <Notice>Idea deleted. Any drafts made from it keep their text.</Notice>}
+      {params.phrases && <Notice>Filled in search phrases for {String(params.phrases)} idea{params.phrases === "1" ? "" : "s"}.</Notice>}
+      {canFill && (
+        <form action={fillSuggestedPhrases} className="card flex flex-col gap-3 border-indigo-200 bg-indigo-50 sm:flex-row sm:items-center">
+          <div className="flex-1">
+            <div className="text-lg font-bold text-indigo-950">Search phrases are ready for the starter ideas</div>
+            <p className="text-sm text-indigo-900">
+              Each idea can have 2–3 things people search for. They help rank ideas by what’s trending. This only fills ideas that don’t have any yet,
+              and you can edit them on each idea.
+            </p>
+          </div>
+          <button className="btn-primary">Fill in suggested search phrases</button>
+        </form>
+      )}
 
       {operator && (
         <form action={uploadProblemsPdf} className="card flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -158,6 +172,18 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
                       {p.whyNow && <CopyBlock title="Why they care right now" text={p.whyNow} />}
                       {p.stat && <CopyBlock title="The number" text={p.stat} strong />}
                       {!p.overlooked && !p.whyNow && p.body && <CopyBlock title="The idea" text={p.body} />}
+                      {splitPhrases(p.searchPhrases).length > 0 && (
+                        <div>
+                          <div className="text-sm font-bold uppercase tracking-wide text-slate-500">Search phrases</div>
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {splitPhrases(p.searchPhrases).map((ph) => (
+                              <span key={ph} className="rounded-full bg-white px-3 py-1 text-sm text-slate-700 ring-1 ring-slate-300">
+                                {ph}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {p.references.length > 0 && (
                         <div>
                           <div className="text-sm font-bold uppercase tracking-wide text-slate-500">Source</div>

@@ -44,6 +44,17 @@ export function ProblemFields({ problem }: { problem?: Problem }) {
         />
       </div>
       <div>
+        <label className="label" htmlFor="searchPhrases">Search phrases</label>
+        <input
+          id="searchPhrases"
+          name="searchPhrases"
+          className="input"
+          defaultValue={problem?.searchPhrases}
+          placeholder="e.g. missed calls, dog boarding near me, pet sitter holidays"
+        />
+        <p className="mt-1 text-xs text-slate-500">2–3 things people type into Google about this, separated by commas. Used to rank ideas by what’s trending.</p>
+      </div>
+      <div>
         <label className="label" htmlFor="references">Source links</label>
         <textarea
           id="references"

@@ -386,6 +386,7 @@ function ActionPanel({ issue, user }: { issue: Issue; user: User }) {
         <form key="results" action={saveResults} className="space-y-2">
           <input type="hidden" name="id" value={issue.id} />
           <div className="label">Send log results</div>
+          <p className="text-xs text-slate-500">The open rate also helps rank content ideas: ideas like your best-opened emails move up.</p>
           <input name="openRate" className="input" placeholder="Open rate (e.g. 42%)" defaultValue={issue.results.openRate} />
           <input name="replies" className="input" placeholder="Replies" defaultValue={issue.results.replies} />
           <input name="callsBooked" className="input" placeholder="Calls booked" defaultValue={issue.results.callsBooked} />

@@ -25,7 +25,39 @@ export const CONTEXT_FIELDS = [
   { key: "overlooked", label: "What owners aren’t paying attention to", short: "What they miss" },
   { key: "whyNow", label: "Why they care right now", short: "Why now" },
   { key: "stat", label: "The number that backs it up", short: "The number" },
+  { key: "searchPhrases", label: "Search phrases (2–3 things people search for)", short: "Search phrases" },
 ] as const;
+
+export function splitPhrases(text: string | undefined): string[] {
+  return (text ?? "")
+    .split(/[\n,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// Suggested search phrases for the 17 starter ideas (v3), matched by subject
+// line. "Fill in suggested search phrases" only fills ideas that have none.
+export const SUGGESTED_PHRASES: Record<string, string> = {
+  "the calls you never hear about": "missed calls, call answering service, vet not answering phone",
+  "one missed call, one lost client": "missed calls, virtual receptionist, answering service",
+  "your clients book when you're closed": "online booking, book vet online, dog boarding booking",
+  "the first five minutes decide the client": "lead response time, speed to lead, missed leads",
+  "the messages nobody answered": "unanswered messages, lead follow up, social media inbox",
+  "booking with you might be harder than you think": "online booking, vet appointment, grooming appointment",
+  "the empty slot that cost you twice": "appointment no shows, no show fee, cancellation policy",
+  "they didn't forget. nobody reminded them.": "appointment reminders, vaccine reminders, text reminders",
+  "the no-shows a reminder would have saved": "appointment reminder text, appointment no shows, reminder app",
+  "holiday spots are already filling up": "dog boarding christmas, pet sitter holidays, dog boarding near me",
+  "pet parents are staying home because they don't trust anyone": "pet sitter near me, trusted pet sitter, pet sitter reviews",
+  "clients leave quietly": "customer retention, switching vets, lost customers",
+  "your cheapest new client is an old one": "customer retention, win back customers, repeat customers",
+  "they read your reviews before they call": "google reviews, vet reviews, dog groomer reviews",
+  "happy clients who never leave a review": "how to get google reviews, review request, ask for reviews",
+  "where did your week go?": "small business admin, time management, business automation",
+  "running the business off the bank balance": "cash flow, small business bookkeeping, profit and loss",
+};
+
+export const suggestedPhrasesFor = (title: string) => SUGGESTED_PHRASES[title.trim().toLowerCase().replace(/[’‘]/g, "'")];
 
 // "Label - https://…", "Label: https://…" or a bare URL, one per line.
 export function parseReferences(text: string): Reference[] {

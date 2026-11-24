@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { parseProblemsPdf } from "@/lib/pdf-problems";
-import { formatCode, parseReferences, topicLabel } from "@/lib/problems";
+import { formatCode, parseReferences, suggestedPhrasesFor, topicLabel } from "@/lib/problems";
 import { htmlToText, textToHtml } from "@/lib/richtext";
 import { upcomingWednesdays } from "@/lib/schedule";
 import { updateDb } from "@/lib/store";
@@ -17,7 +17,12 @@ const done = (path: string, error?: string): never => {
   redirect(error ? `${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(error)}` : path);
 };
 
-const context = (f: FormData): TopicContext => ({ overlooked: str(f, "overlooked"), whyNow: str(f, "whyNow"), stat: str(f, "stat") });
+const context = (f: FormData): TopicContext => ({
+  overlooked: str(f, "overlooked"),
+  whyNow: str(f, "whyNow"),
+  stat: str(f, "stat"),
+  searchPhrases: str(f, "searchPhrases"),
+});
 
 function addProblem(db: Db, user: User, p: TopicContext & { title: string; body: string; references: Reference[]; notes: string; source: string }): Problem {
   db.problemSeq = Math.max(db.problemSeq, ...db.problems.map((x) => Number(x.code.slice(3)) || 0)) + 1;
@@ -192,7 +197,7 @@ export async function confirmImport(formData: FormData) {
   const bodies = formData.getAll("body").map(String);
   const refs = formData.getAll("references").map(String);
   const all = (k: string) => formData.getAll(k).map((v) => String(v).trim());
-  const [overlooked, whyNow, stat, notes] = [all("overlooked"), all("whyNow"), all("stat"), all("notes")];
+  const [overlooked, whyNow, stat, notes, searchPhrases] = [all("overlooked"), all("whyNow"), all("stat"), all("notes"), all("searchPhrases")];
   const added = await updateDb((db) => {
     const imp = db.imports.find((i) => i.id === id);
     if (!imp) return 0;
@@ -202,6 +207,7 @@ export async function confirmImport(formData: FormData) {
       addProblem(db, user, {
         title: title.trim(),
         overlooked: overlooked[i] ?? "",
+        searchPhrases: searchPhrases[i] || suggestedPhrasesFor(title) || "",
         whyNow: whyNow[i] ?? "",
         stat: stat[i] ?? "",
         body: (bodies[i] ?? "").trim(),
@@ -224,4 +230,22 @@ export async function discardImport(formData: FormData) {
     db.imports = db.imports.filter((i) => i.id !== id);
   });
   done("/problems");
+}
+
+// Fills the drafted search phrases into ideas that don't have any yet.
+export async function fillSuggestedPhrases() {
+  await requireRole("operator");
+  const filled = await updateDb((db) => {
+    let n = 0;
+    for (const p of db.problems) {
+      const phrases = suggestedPhrasesFor(p.title);
+      if (phrases && !p.searchPhrases?.trim()) {
+        p.searchPhrases = phrases;
+        p.updatedAt = now();
+        n++;
+      }
+    }
+    return n;
+  });
+  done(`/problems?phrases=${filled}`);
 }

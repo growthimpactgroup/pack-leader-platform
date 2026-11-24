@@ -22,6 +22,7 @@ const LABELS: { re: RegExp; key: keyof TopicContext | "notes" | "source" }[] = [
   { re: /^why (?:they care|it matters)(?: right)?(?: now)?\s*:\s*/i, key: "whyNow" },
   { re: /^(?:the number(?: that backs it up)?|the stat(?:istic)?|proof)\s*:\s*/i, key: "stat" },
   { re: /^notes?(?: for whoever writes it)?\s*:\s*/i, key: "notes" },
+  { re: /^search phrases\s*:\s*/i, key: "searchPhrases" },
   { re: /^source\s*:\s*/i, key: "source" },
 ];
 
