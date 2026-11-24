@@ -4,6 +4,8 @@ import { createDraftFromProblem, deleteProblem, uploadProblemsPdf } from "@/app/
 import { ErrorBox, Notice, ProblemStatusBadge, STAGE_THEME } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
 import { problemStatus, topicLabel } from "@/lib/problems";
+import { rankIdeas } from "@/lib/rank";
+import { pacificToday } from "@/lib/schedule";
 import { STAGES, type Stage } from "@/lib/types";
 import { readDb } from "@/lib/store";
 
@@ -34,6 +36,8 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
   const all = [...db.problems]
     .sort((a, b) => a.code.localeCompare(b.code))
     .map((p) => ({ p, status: problemStatus(p, db.issues) }));
+  // Rank every idea (the list keeps its order; the rank shows beside each one).
+  const ranks = rankIdeas(all.map(({ p, status }) => ({ p, stage: status.stage })), Number(pacificToday().slice(5, 7)));
   const shown = all.filter(({ p, status }) => {
     if (q && !`${topicLabel(p.code)} ${p.title} ${p.overlooked ?? ""} ${p.whyNow ?? ""} ${p.stat ?? ""} ${p.body}`.toLowerCase().includes(q.toLowerCase())) return false;
     if (filter === "new") return status.stage === null;
@@ -65,9 +69,10 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
       {operator && (
         <form action={uploadProblemsPdf} className="card flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="flex-1">
-            <div className="font-semibold">Upload a PDF of ideas</div>
-            <p className="text-sm text-slate-500">
-              Each numbered idea becomes its own entry. You’ll check and fix the cards before anything is added. Up to 4 MB.
+            <div className="text-lg font-bold">Load a PDF of ideas for possible broadcasts</div>
+            <p className="text-sm text-slate-600">
+              This is where you load PDFs of ideas for possible emails and broadcasts. Each numbered idea becomes its own entry, and you check them
+              before anything is added. Up to 4 MB.
             </p>
           </div>
           <input
@@ -117,40 +122,45 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
         <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           {shown.map(({ p, status }) => {
             const preview = p.overlooked || p.body || p.stat || "";
+            const rank = ranks.get(p.id);
             return (
               <li key={p.id} className={`border-l-4 ${status.stage ? STAGE_THEME[status.stage].border : "border-l-transparent"}`}>
                 <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
                   <details className="group min-w-0 flex-1">
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                       <div className="flex flex-wrap items-center gap-2">
+                        {rank && (
+                          <span
+                            title={`Score ${rank.score}/100`}
+                            className={`rounded-full px-3 py-1 text-sm font-bold ${rank.rank <= 3 ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-700 ring-1 ring-slate-300"}`}
+                          >
+                            Rank #{rank.rank}
+                          </span>
+                        )}
                         <ProblemStatusBadge label={status.label} stage={status.stage} />
                         <span className="text-sm text-slate-500">{topicLabel(p.code)}</span>
                       </div>
-                      <div className="mt-1.5 flex items-start gap-2">
-                        <span aria-hidden className="mt-1 text-slate-400 transition group-open:rotate-90">▶</span>
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-slate-500">Subject line</div>
-                          <div className="text-lg font-bold leading-snug text-slate-900 group-hover:underline">{p.title}</div>
-                          {preview && <p className="mt-1 line-clamp-2 text-base text-slate-600 group-open:line-clamp-none">{preview}</p>}
+                      <div className="mt-3 flex items-start gap-3">
+                        <span aria-hidden className="mt-1.5 text-lg text-indigo-500 transition group-open:rotate-90">▶</span>
+                        {/* Framed like an email in an inbox. */}
+                        <div className="min-w-0 max-w-[62ch] rounded-lg bg-slate-50 px-4 py-3 ring-1 ring-slate-200">
+                          <div className="text-xl leading-snug">
+                            <span className="font-bold text-slate-500">Subject:</span>{" "}
+                            <span className="font-bold text-slate-900 group-hover:underline">{p.title}</span>
+                          </div>
+                          {preview && <p className="mt-1.5 line-clamp-2 text-base leading-relaxed text-slate-600 group-open:hidden">{preview}</p>}
                         </div>
                       </div>
                     </summary>
-                    <div className="mt-4 space-y-3 pl-6 text-base">
-                      {p.whyNow && (
-                        <div>
-                          <div className="font-semibold text-slate-800">Why they care right now</div>
-                          <p className="text-slate-700">{p.whyNow}</p>
-                        </div>
-                      )}
-                      {p.stat && (
-                        <div>
-                          <div className="font-semibold text-slate-800">The number</div>
-                          <p className="font-medium text-slate-900">{p.stat}</p>
-                        </div>
-                      )}
+                    {/* Short lines and short paragraphs, the way sales emails are laid out. */}
+                    <div className="mt-5 max-w-[62ch] space-y-6 pl-8 text-lg leading-relaxed">
+                      {p.overlooked && <CopyBlock title="What owners miss" text={p.overlooked} />}
+                      {p.whyNow && <CopyBlock title="Why they care right now" text={p.whyNow} />}
+                      {p.stat && <CopyBlock title="The number" text={p.stat} strong />}
+                      {!p.overlooked && !p.whyNow && p.body && <CopyBlock title="The idea" text={p.body} />}
                       {p.references.length > 0 && (
                         <div>
-                          <div className="font-semibold text-slate-800">Source</div>
+                          <div className="text-sm font-bold uppercase tracking-wide text-slate-500">Source</div>
                           <ul className="space-y-0.5">
                             {p.references.map((r, k) => (
                               <li key={k}>
@@ -168,8 +178,20 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
                       )}
                       {p.notes && (
                         <div>
-                          <div className="font-semibold text-slate-800">Notes for whoever writes it</div>
+                          <div className="text-sm font-bold uppercase tracking-wide text-slate-500">Notes for whoever writes it</div>
                           <p className="text-slate-600">{p.notes}</p>
+                        </div>
+                      )}
+                      {rank && (
+                        <div className="rounded-lg bg-indigo-50 p-4 text-base ring-1 ring-indigo-100">
+                          <div className="font-bold text-indigo-900">
+                            Why it ranks #{rank.rank} <span className="font-normal text-indigo-700">({rank.score}/100)</span>
+                          </div>
+                          <ul className="mt-1 list-disc pl-5 text-indigo-900">
+                            {rank.reasons.map((r) => (
+                              <li key={r}>{r}</li>
+                            ))}
+                          </ul>
                         </div>
                       )}
                       {status.issues.length > 0 && (
@@ -202,6 +224,25 @@ export default async function ProblemBankPage({ searchParams }: PageProps<"/prob
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+// Breaks text into one- or two-sentence paragraphs with room to breathe.
+function CopyBlock({ title, text, strong }: { title: string; text: string; strong?: boolean }) {
+  const sentences = text.match(/[^.!?]+[.!?]+["”’)]*\s*|[^.!?]+$/g) ?? [text];
+  const paras: string[] = [];
+  for (let i = 0; i < sentences.length; i += 2) paras.push(sentences.slice(i, i + 2).join("").trim());
+  return (
+    <div>
+      <div className="text-sm font-bold uppercase tracking-wide text-slate-500">{title}</div>
+      <div className="mt-1 space-y-3">
+        {paras.map((t, i) => (
+          <p key={i} className={strong ? "font-semibold text-slate-900" : "text-slate-800"}>
+            {t}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }
