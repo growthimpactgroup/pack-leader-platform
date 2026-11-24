@@ -11,6 +11,18 @@ import type { Problem, Reference } from "./types";
 
 export const generatorConfigured = () => !!process.env.ANTHROPIC_API_KEY;
 
+// Plain-language version of the API errors people are most likely to hit.
+export function friendlyClaudeError(e: unknown): string {
+  if (e instanceof Anthropic.AuthenticationError)
+    return "Anthropic didn’t accept the API key. In Vercel, replace ANTHROPIC_API_KEY with the full secret key that starts with sk-ant-api (shown once when the key is created), then redeploy.";
+  if (e instanceof Anthropic.PermissionDeniedError) return "This API key isn’t allowed to use Claude. Check the key’s workspace in the Anthropic console.";
+  if (e instanceof Anthropic.RateLimitError) return "Anthropic is rate-limiting this account right now. Wait a minute and try again.";
+  if (e instanceof Anthropic.BadRequestError && /credit|billing|balance/i.test(e.message))
+    return "The Anthropic account has no credit. Add credit under Billing in the Anthropic console, then try again.";
+  if (e instanceof Anthropic.APIError) return `Anthropic error ${e.status}: ${e.message}`;
+  return e instanceof Error ? e.message : String(e);
+}
+
 // Primary and official sources: government, standards bodies, professional
 // associations, peer-reviewed journals, and the email providers' own rules.
 export const TRUSTED_DOMAINS = [
@@ -140,7 +152,8 @@ export async function generateDraft(p: Problem, tone: string, notes: string): Pr
     .filter(Boolean)
     .join("\n\n");
 
-  const client = new Anthropic();
+  // Trim stray spaces or line breaks a pasted key can pick up.
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY?.trim() });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: brief }];
   const seenUrls = new Set(p.references.map((r) => r.url));
 

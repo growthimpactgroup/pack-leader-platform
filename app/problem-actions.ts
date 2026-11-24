@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { rateSubject, ratingConfigured } from "@/lib/ai-rating";
 import { rateSubjectLines, refreshTrends } from "@/lib/refresh";
-import { generateDraft, generatorConfigured } from "@/lib/generate-draft";
+import { friendlyClaudeError, generateDraft, generatorConfigured } from "@/lib/generate-draft";
 import { sanitizeEmailHtml } from "@/lib/sanitize";
 import { parseProblemsPdf } from "@/lib/pdf-problems";
 import { formatCode, parseReferences, suggestedPhrasesFor, topicLabel } from "@/lib/problems";
@@ -303,7 +303,7 @@ export async function generateDraftFromProblem(formData: FormData) {
   try {
     draft = await generateDraft(problem!, tone, notes);
   } catch (e) {
-    return done(back, `Couldn’t generate the draft: ${e instanceof Error ? e.message : String(e)}`);
+    return done(back, `Couldn’t generate the draft. ${friendlyClaudeError(e)}`);
   }
 
   const result = await updateDb((db) => {

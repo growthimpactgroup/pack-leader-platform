@@ -22,7 +22,8 @@ Rate how likely a busy owner is to open the email from the subject line alone, f
 Give the reason in one short plain sentence (under 25 words) that Frances, the writer, can act on.`;
 
 export async function rateSubject(p: Problem): Promise<SubjectRating> {
-  const client = new Anthropic();
+  // Trim stray spaces or line breaks a pasted key can pick up.
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY?.trim() });
   const response = await client.beta.messages.parse({
     model: "claude-opus-5-5",
     max_tokens: 2000,
