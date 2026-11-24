@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ConfirmButton } from "@/app/confirm-button";
 import { createDraftFromProblem, deleteProblem, fillSuggestedPhrases, rateSubjectLinesNow, refreshTrendsNow, uploadProblemsPdf } from "@/app/problem-actions";
 import { ratingConfigured } from "@/lib/ai-rating";
-import { trendsConfigured } from "@/lib/trends";
+import { trendsConfigured, trendsProvider } from "@/lib/trends";
 import { formatPacific } from "@/lib/schedule";
 import { ErrorBox, Notice, ProblemStatusBadge, STAGE_THEME } from "@/app/ui";
 import { currentUser } from "@/lib/auth";
@@ -315,8 +315,8 @@ function RankingSources({ problems, operator }: { problems: Problem[]; operator:
       {row(
         trendsOn,
         "Live search trends",
-        lastTrend ? `Last checked ${formatPacific(new Date(lastTrend))}. Checks again every Monday.` : "Connected, not checked yet. Checks every Monday, or now.",
-        "Not connected yet. Once GIG’s DataForSEO login is added in Vercel, this checks Google search interest for each idea’s search phrases every Monday.",
+        `${lastTrend ? `Last checked ${formatPacific(new Date(lastTrend))}. Checks again every Monday.` : "Connected, not checked yet. Checks every Monday, or now."} Source: ${trendsProvider()}.`,
+        "Not connected yet. Once the SerpApi key is added in Vercel, this checks Google search interest for each idea’s search phrases every Monday.",
         refreshTrendsNow,
         "Check trends now",
       )}

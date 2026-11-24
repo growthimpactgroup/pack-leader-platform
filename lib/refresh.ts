@@ -9,7 +9,7 @@ import { checkTrend, trendsConfigured } from "./trends";
 export type RefreshResult = { done: number; failed: number; skipped: string | null; error?: string };
 
 export async function refreshTrends(): Promise<RefreshResult> {
-  if (!trendsConfigured()) return { done: 0, failed: 0, skipped: "Live trends aren’t connected yet (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD missing)." };
+  if (!trendsConfigured()) return { done: 0, failed: 0, skipped: "Live trends aren’t connected yet (SERPAPI_API_KEY missing)." };
   const db = await readDb();
   let done = 0;
   let failed = 0;
